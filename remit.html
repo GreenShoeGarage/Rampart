@@ -28,6 +28,7 @@
 <meta name="theme-color" content="#15191c">
 <link rel="apple-touch-icon" href="icon-192.png">
 <script src="gate.js"></script>
+<script src="core.js"></script>
 <script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
 </head>
 <body>
@@ -97,7 +98,7 @@
     <div class="card">
       <h3>Assumptions and constraints</h3>
       <label class="fld"><span>Boundaries, timing, and anything taken as given</span><textarea id="assumptions" placeholder="e.g. Business hours only. No destructive testing. Network not in scope."></textarea></label>
-      <div class="row-actions"><button class="btn" id="save">Save remit</button><span class="statline" id="save-stat" style="align-self:center;"></span></div>
+      <div class="row-actions"><button class="btn" id="save">Save remit</button><button class="btn ghost" id="to-sc">Send scope to Safeconduct</button><span class="statline" id="save-stat" style="align-self:center;"></span></div>
     </div>
   </section>
 
@@ -120,12 +121,6 @@
 </footer>
 
 <script>
-const $ = id => document.getElementById(id);
-function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
-const store = {
-  get(k,d){ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):d; }catch(e){ return d; } },
-  set(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){} }
-};
 const KEY='rampart.remit.plan';
 
 const TIERS={
@@ -200,6 +195,15 @@ function collect(){
 }
 function save(){ collect(); store.set(KEY, plan); }
 $('save').onclick=()=>{ save(); $('save-stat').textContent='Saved'; setTimeout(()=>$('save-stat').textContent='',1600); renderRemit(); };
+$('to-sc').onclick=()=>{
+  save();
+  const assets = plan.assets.map(a=>a.name).join('; ');
+  const inscope = [plan.objective?('Objective: '+plan.objective):'', assets?('Priority assets: '+assets):''].filter(Boolean).join('\n');
+  store.set('rampart.safeconduct.prefill', { inscope:inscope, roe:plan.assumptions||'' });
+  $('save-stat').textContent='Sent to Safeconduct';
+  setTimeout(()=>$('save-stat').textContent='',2200);
+  alert('Sent to Safeconduct. Open Safeconduct and apply it to the letter.');
+};
 
 /* ---------- remit output ---------- */
 function remitText(){

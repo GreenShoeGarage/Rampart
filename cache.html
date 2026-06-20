@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<!-- CACHE (Field Instrument 036, Mod 23) - Rampart Field Kit. License: GPL-3.0 -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CACHE - Rampart Field Kit</title>
+<meta name="description" content="Passphrase encrypted vault for sensitive engagement notes. AES-GCM with PBKDF2 key derivation, encrypted at rest on the device. Runs offline.">
+<link rel="stylesheet" href="theme.css">
+<style>
+  .lockwrap { max-width:420px; margin:0 auto; text-align:center; padding:10px 0; }
+  .lockwrap .glyph { font-family:var(--mono); font-size:30px; letter-spacing:0.3em; color:var(--rust); margin-bottom:8px; }
+  .state { font-family:var(--mono); font-size:11px; letter-spacing:0.16em; text-transform:uppercase; padding:5px 12px; border-radius:14px; display:inline-block; }
+  .state.locked { color:var(--steel); border:1px solid var(--line-2); }
+  .state.open { color:var(--olive); border:1px solid var(--olive); background:rgba(132,149,95,0.10); }
+  .entry { background:var(--plate); border:1px solid var(--line-2); border-radius:var(--rad); padding:12px; margin-bottom:10px; }
+  .entry .et { color:var(--cream); font-size:15px; font-weight:600; }
+  .entry .em { font-family:var(--mono); font-size:10.5px; color:var(--steel); margin-top:2px; }
+  .entry .eb { color:var(--mute); font-size:14px; white-space:pre-wrap; margin-top:10px; padding-top:10px; border-top:1px solid var(--line); word-break:break-word; }
+  .warn-box { border:1px solid var(--amber); background:rgba(199,158,80,0.08); border-radius:var(--rad); padding:11px 13px; color:var(--amber); font-size:13px; margin-top:12px; }
+  .reflist { color:var(--mute); font-size:14.5px; line-height:1.8; }
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#15191c">
+<link rel="apple-touch-icon" href="icon-192.png">
+<script src="gate.js"></script>
+<script src="core.js"></script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</head>
+<body>
+<div class="band"><span>Authorized assessment use only</span></div>
+
+<header class="masthead">
+  <div class="wrap">
+    <div class="crumbs"><a href="index.html">Rampart</a><span class="sep">/</span><span>Mod 23</span><span class="sep">/</span><span>Cache</span></div>
+    <div class="kit-title"><span class="name">Cache</span><span class="no">036 · 23</span></div>
+    <div class="kit-sub">Encrypted Vault</div>
+    <p class="kit-lede">Hold the sensitive material behind a passphrase. Observed credentials, client secrets, scope you would not want read off a lost phone: Cache keeps them encrypted at rest with AES-GCM and a key derived from your passphrase, so the data on the device is unreadable without it. The passphrase is never stored, and nothing can recover the vault if it is lost.</p>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" aria-selected="true"  data-tab="vault">Vault</button>
+    <button class="tab" role="tab" aria-selected="false" data-tab="reference">Reference</button>
+  </div>
+
+  <!-- VAULT -->
+  <section class="panel active" id="vault">
+    <div class="card" id="nocrypto" style="display:none;">
+      <div class="warn-box">This device does not expose Web Crypto in a secure context. Host the kit over HTTPS or install it as an app, then reload. The vault needs it to encrypt.</div>
+    </div>
+
+    <!-- create -->
+    <div class="card" id="panel-create" style="display:none;">
+      <div class="lockwrap">
+        <div class="glyph">[ ]</div>
+        <h3 style="margin:0 0 4px;">Create the vault</h3>
+        <p style="color:var(--mute);font-size:14px;">Choose a strong passphrase. It is the only key to the contents.</p>
+      </div>
+      <label class="fld"><span>Passphrase</span><input type="password" id="cr-pass" autocomplete="new-password" placeholder="At least 8 characters"></label>
+      <label class="fld"><span>Confirm passphrase</span><input type="password" id="cr-pass2" autocomplete="new-password"></label>
+      <div class="row-actions"><button class="btn" id="cr-go">Create vault</button></div>
+      <div class="statline" id="cr-stat" style="margin-top:8px;"></div>
+      <div class="warn-box">If the passphrase is lost, the contents cannot be recovered. There is no backdoor and no reset that keeps the data.</div>
+    </div>
+
+    <!-- unlock -->
+    <div class="card" id="panel-unlock" style="display:none;">
+      <div class="lockwrap">
+        <div class="glyph">[*]</div>
+        <h3 style="margin:0 0 4px;">Vault locked</h3>
+        <p style="color:var(--mute);font-size:14px;">Enter the passphrase to unlock the contents.</p>
+      </div>
+      <label class="fld"><span>Passphrase</span><input type="password" id="un-pass" autocomplete="current-password"></label>
+      <div class="row-actions"><button class="btn" id="un-go">Unlock</button></div>
+      <div class="statline" id="un-stat" style="margin-top:8px;"></div>
+      <div style="margin-top:14px;text-align:center;"><button class="btn ghost sm" id="un-reset">Forgotten passphrase, reset vault</button></div>
+    </div>
+
+    <!-- unlocked -->
+    <div id="panel-open" style="display:none;">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+          <span class="state open">Vault unlocked</span>
+          <div class="row-actions" style="margin:0;"><button class="btn ghost sm" id="op-export">Export encrypted</button><button class="btn" id="op-lock">Lock</button></div>
+        </div>
+        <p style="color:var(--faint);font-size:12.5px;margin:10px 0 0;">Auto locks after five minutes idle, and when the app is sent to the background.</p>
+      </div>
+      <div class="card">
+        <h3 style="margin-top:0;" id="add-h">Add entry</h3>
+        <label class="fld"><span>Title</span><input id="e-title" placeholder="e.g. Vendor portal note"></label>
+        <label class="fld"><span>Contents</span><textarea id="e-body" rows="4" style="width:100%;resize:vertical;"></textarea></label>
+        <div class="row-actions"><button class="btn" id="e-save">Save entry</button><button class="btn ghost sm" id="e-cancel" style="display:none;">Cancel</button></div>
+      </div>
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+          <h3 style="margin:0;">Contents</h3>
+          <button class="btn ghost sm" id="op-changepass">Change passphrase</button>
+        </div>
+        <div id="entries" style="margin-top:12px;"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- REFERENCE -->
+  <section class="panel" id="reference">
+    <div class="card">
+      <h3>How the vault protects data</h3>
+      <div class="reflist">
+        The contents are encrypted with AES-GCM, an authenticated cipher, so tampering with the stored vault is detected and a modified vault will not decrypt. The key is derived from your passphrase with PBKDF2 over many iterations and a random salt, which slows guessing.<br>
+        The passphrase is never written to the device. The key lives in memory only while the vault is unlocked, and locking clears it. Only the encrypted blob, its salt, and its initialization vector are stored, none of which reveal the contents.<br>
+        Because there is no stored passphrase, there is no recovery. A lost passphrase means lost contents. Choose something strong that you will remember, and keep an independent record if the data matters.
+      </div>
+    </div>
+    <div class="card">
+      <h3>What belongs here</h3>
+      <div class="reflist">
+        Sensitive material that should not be readable off a lost or seized device: credentials you observed, client contacts and secrets, scope and rules of engagement you would not want exposed, and notes on findings that are sensitive before the debrief.<br>
+        The encrypted vault travels with the engagement backup, still encrypted, so a backup never carries the contents in the clear. Keep the assessment findings themselves in their own modules so they reach the report, and reserve the vault for what genuinely needs to stay secret.
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="wrap foot">
+  <span><a href="index.html" style="color:var(--mute);">&larr; Back to kit</a></span>
+  <span>Cache · Mod 23</span>
+</footer>
+
+<script>
+const VKEY='rampart.cache.vault';
+const ITER=250000;
+let vault = store.get(VKEY, null);
+let key=null, entries=null, unlocked=false, editId=null, idleTimer=null;
+const IDLE_MS=5*60*1000;
+
+const subtle = (window.crypto && window.crypto.subtle) ? window.crypto.subtle : null;
+
+/* ---------- crypto ---------- */
+function b64(u8){ let s=''; for(let i=0;i<u8.length;i++) s+=String.fromCharCode(u8[i]); return btoa(s); }
+function fromB64(str){ const s=atob(str); const u=new Uint8Array(s.length); for(let i=0;i<s.length;i++) u[i]=s.charCodeAt(i); return u; }
+async function deriveKey(pass, salt, iter){
+  const base=await subtle.importKey('raw', new TextEncoder().encode(pass), 'PBKDF2', false, ['deriveKey']);
+  return subtle.deriveKey({ name:'PBKDF2', salt:salt, iterations:iter, hash:'SHA-256' }, base, { name:'AES-GCM', length:256 }, false, ['encrypt','decrypt']);
+}
+async function encryptEntries(arr, k){
+  const iv=crypto.getRandomValues(new Uint8Array(12));
+  const data=new TextEncoder().encode(JSON.stringify(arr));
+  const ct=await subtle.encrypt({ name:'AES-GCM', iv:iv }, k, data);
+  return { iv:b64(iv), ct:b64(new Uint8Array(ct)) };
+}
+async function decryptEntries(blob, k){
+  const pt=await subtle.decrypt({ name:'AES-GCM', iv:fromB64(blob.iv) }, k, fromB64(blob.ct));
+  return JSON.parse(new TextDecoder().decode(pt));
+}
+async function persist(){
+  const blob=await encryptEntries(entries, key);
+  vault={ v:1, salt:vault.salt, iter:vault.iter, iv:blob.iv, ct:blob.ct };
+  store.set(VKEY, vault);
+}
+
+/* ---------- views ---------- */
+function show(id){ ['nocrypto','panel-create','panel-unlock','panel-open'].forEach(p=>$(p).style.display=(p===id)?(p==='panel-open'?'block':'block'):'none'); }
+function route(){
+  if(!subtle){ show('nocrypto'); return; }
+  if(!vault){ show('panel-create'); }
+  else if(!unlocked){ show('panel-unlock'); }
+  else { show('panel-open'); renderEntries(); }
+}
+
+/* ---------- create / unlock / lock ---------- */
+$('cr-go').onclick=async()=>{
+  const p=$('cr-pass').value, p2=$('cr-pass2').value;
+  if(p.length<8){ $('cr-stat').textContent='Use at least 8 characters.'; return; }
+  if(p!==p2){ $('cr-stat').textContent='Passphrases do not match.'; return; }
+  $('cr-stat').textContent='Deriving key...';
+  try{
+    const salt=crypto.getRandomValues(new Uint8Array(16));
+    const k=await deriveKey(p, salt, ITER);
+    entries=[]; key=k;
+    const blob=await encryptEntries(entries, key);
+    vault={ v:1, salt:b64(salt), iter:ITER, iv:blob.iv, ct:blob.ct };
+    store.set(VKEY, vault);
+    unlocked=true; $('cr-pass').value=''; $('cr-pass2').value=''; $('cr-stat').textContent='';
+    armIdle(); route();
+  }catch(e){ $('cr-stat').textContent='Could not create the vault.'; }
+};
+$('un-go').onclick=async()=>{
+  const p=$('un-pass').value; if(!p){ return; }
+  $('un-stat').textContent='Unlocking...';
+  try{
+    const k=await deriveKey(p, fromB64(vault.salt), vault.iter||ITER);
+    entries=await decryptEntries(vault, k);
+    key=k; unlocked=true; $('un-pass').value=''; $('un-stat').textContent='';
+    armIdle(); route();
+  }catch(e){ $('un-stat').textContent='Incorrect passphrase, or the vault is corrupted.'; }
+};
+function lock(){
+  unlocked=false; key=null; entries=null; editId=null;
+  if(idleTimer){ clearTimeout(idleTimer); idleTimer=null; }
+  $('e-title').value=''; $('e-body').value='';
+  route();
+}
+$('op-lock').onclick=lock;
+$('un-reset').onclick=()=>{
+  if(!confirm('Reset the vault? This permanently destroys the encrypted contents. It cannot be undone.')) return;
+  if(!confirm('Final confirmation. The contents will be gone for good.')) return;
+  localStorage.removeItem(VKEY); vault=null; entries=null; key=null; unlocked=false; route();
+};
+
+/* ---------- entries ---------- */
+$('e-save').onclick=async()=>{
+  const title=$('e-title').value.trim(); const body=$('e-body').value;
+  if(!title && !body.trim()) return;
+  if(editId){ const e=entries.find(x=>x.id===editId); if(e){ e.title=title; e.body=body; e.time=new Date().toISOString(); } editId=null; }
+  else { entries.push({ id:'v'+Date.now().toString(36), title:title, body:body, time:new Date().toISOString() }); }
+  await persist();
+  $('e-title').value=''; $('e-body').value=''; $('add-h').textContent='Add entry'; $('e-cancel').style.display='none';
+  renderEntries();
+};
+$('e-cancel').onclick=()=>{ editId=null; $('e-title').value=''; $('e-body').value=''; $('add-h').textContent='Add entry'; $('e-cancel').style.display='none'; };
+let shown={};
+function renderEntries(){
+  if(!entries || !entries.length){ $('entries').innerHTML='<div class="empty">The vault is empty. Add an entry above.</div>'; return; }
+  $('entries').innerHTML = entries.slice().reverse().map(e=>{
+    const open=!!shown[e.id];
+    return '<div class="entry"><div style="display:flex;justify-content:space-between;gap:10px;align-items:start;">'+
+      '<div style="flex:1;min-width:0;"><div class="et">'+esc(e.title||'Untitled')+'</div><div class="em">'+esc((e.time||'').replace('T',' ').slice(0,16))+'</div></div>'+
+      '<div style="white-space:nowrap;"><button class="btn ghost sm" data-rev="'+e.id+'">'+(open?'Hide':'Reveal')+'</button></div></div>'+
+      (open?'<div class="eb">'+esc(e.body||'')+'</div><div class="row-actions"><button class="btn ghost sm" data-edit="'+e.id+'">Edit</button><button class="btn ghost sm" data-del="'+e.id+'">Delete</button></div>':'')+
+      '</div>';
+  }).join('');
+  $('entries').querySelectorAll('[data-rev]').forEach(b=>b.addEventListener('click',()=>{ shown[b.dataset.rev]=!shown[b.dataset.rev]; renderEntries(); }));
+  $('entries').querySelectorAll('[data-edit]').forEach(b=>b.addEventListener('click',()=>{ const e=entries.find(x=>x.id===b.dataset.edit); if(!e) return; editId=e.id; $('e-title').value=e.title||''; $('e-body').value=e.body||''; $('add-h').textContent='Edit entry'; $('e-cancel').style.display='inline-block'; $('e-title').scrollIntoView({behavior:'smooth',block:'center'}); }));
+  $('entries').querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click',async()=>{ if(!confirm('Delete this entry?')) return; entries=entries.filter(x=>x.id!==b.dataset.del); await persist(); renderEntries(); }));
+}
+
+/* ---------- change passphrase / export ---------- */
+$('op-changepass').onclick=async()=>{
+  const np=prompt('New passphrase (at least 8 characters):'); if(np===null) return;
+  if(np.length<8){ alert('Use at least 8 characters.'); return; }
+  const np2=prompt('Confirm the new passphrase:'); if(np2===null) return;
+  if(np!==np2){ alert('Passphrases do not match.'); return; }
+  try{
+    const salt=crypto.getRandomValues(new Uint8Array(16));
+    key=await deriveKey(np, salt, ITER);
+    vault.salt=b64(salt); vault.iter=ITER;
+    await persist();
+    alert('Passphrase changed. The vault was re-encrypted.');
+  }catch(e){ alert('Could not change the passphrase.'); }
+};
+$('op-export').onclick=()=>{
+  const out={ kind:'rampart-cache-vault', exported:new Date().toISOString(), vault:vault };
+  const b=new Blob([JSON.stringify(out,null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='cache-vault.json'; a.click(); URL.revokeObjectURL(a.href);
+};
+
+/* ---------- idle auto-lock ---------- */
+function armIdle(){ if(idleTimer) clearTimeout(idleTimer); idleTimer=setTimeout(()=>{ if(unlocked) lock(); }, IDLE_MS); }
+function bump(){ if(unlocked) armIdle(); }
+document.addEventListener('click',bump);
+document.addEventListener('keydown',bump);
+document.addEventListener('visibilitychange',()=>{ if(document.hidden && unlocked) lock(); });
+
+/* ---------- tabs + init ---------- */
+const tabs=document.querySelectorAll('.tab');
+tabs.forEach(t=>t.addEventListener('click',()=>{
+  tabs.forEach(x=>x.setAttribute('aria-selected',x===t?'true':'false'));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active',p.id===t.dataset.tab));
+}));
+
+route();
+</script>
+</body>
+</html>

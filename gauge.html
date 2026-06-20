@@ -22,6 +22,8 @@
 <meta name="theme-color" content="#15191c">
 <link rel="apple-touch-icon" href="icon-192.png">
 <script src="gate.js"></script>
+<script src="core.js"></script>
+<script src="media.js"></script>
 <script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
 </head>
 <body>
@@ -131,12 +133,6 @@
 </footer>
 
 <script>
-const $ = id => document.getElementById(id);
-function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
-const store = {
-  get(k,d){ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):d; }catch(e){ return d; } },
-  set(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){} }
-};
 const KEY='rampart.gauge.log';
 let sets = store.get(KEY, []);
 
@@ -272,32 +268,40 @@ function renderMlist(){
 function updateSaveBtn(){ $('save').disabled = !measurements.length; }
 
 /* ---------- save sets ---------- */
-$('save').onclick=()=>{
+$('save').onclick=async()=>{
   if(!measurements.length) return;
-  sets.push({ time:new Date().toISOString(), loc:$('s-loc').value.trim(), note:$('s-note').value.trim(),
-    unit, img:imgEl._src, measurements:measurements.map(m=>({label:m.label, len:+m.len.toFixed(1)})) });
+  const rec = { time:new Date().toISOString(), loc:$('s-loc').value.trim(), note:$('s-note').value.trim(),
+    unit, measurements:measurements.map(m=>({label:m.label, len:+m.len.toFixed(1)})) };
+  const M=window.RampartMedia;
+  if(imgEl && imgEl._src){
+    if(M && M.available()){ try{ rec.imgId=await M.put(imgEl._src); }catch(e){ rec.img=imgEl._src; } }
+    else rec.img=imgEl._src;
+  }
+  sets.push(rec);
   store.set(KEY, sets);
   $('s-loc').value=''; $('s-note').value='';
   $('save-stat').textContent='Saved '+measurements.length+' measurement'+(measurements.length===1?'':'s')+'.';
   renderSaved();
 };
+async function imgOf(s){ if(s.img) return s.img; if(s.imgId && window.RampartMedia){ return (await window.RampartMedia.get(s.imgId))||''; } return ''; }
 function renderSaved(){
   if(!sets.length){ $('saved-body').innerHTML='<div class="empty">No measurement sets saved yet.</div>'; return; }
   $('saved-body').innerHTML = sets.slice().reverse().map((s,ri)=>{
     const i=sets.length-1-ri;
     const ms=s.measurements.map(m=>esc(m.label)+' '+m.len+s.unit).join(', ');
     return '<div class="card" style="margin-bottom:12px;"><div style="display:flex;gap:12px;">'+
-      (s.img?'<img src="'+s.img+'" style="width:90px;height:68px;object-fit:cover;border:1px solid var(--line);border-radius:2px;">':'')+
+      ((s.img||s.imgId)?'<img data-sidx="'+i+'" style="width:90px;height:68px;object-fit:cover;border:1px solid var(--line);border-radius:2px;">':'')+
       '<div style="flex:1;"><div style="color:var(--cream);">'+(esc(s.loc)||'Unlabeled')+'</div>'+
       '<div style="color:var(--mute);font-size:13px;margin-top:3px;">'+ms+'</div>'+
       (s.note?'<div style="color:var(--faint);font-size:12px;margin-top:3px;">'+esc(s.note)+'</div>':'')+
       '<div style="font-family:var(--mono);font-size:10px;color:var(--steel);margin-top:4px;">'+esc((s.time||'').replace('T',' ').slice(0,16))+'</div></div>'+
       '<button class="btn ghost sm" data-sdel="'+i+'" style="align-self:start;">Remove</button></div></div>';
   }).join('');
-  $('saved-body').querySelectorAll('[data-sdel]').forEach(b=>b.addEventListener('click',()=>{ sets.splice(+b.dataset.sdel,1); store.set(KEY,sets); renderSaved(); }));
+  $('saved-body').querySelectorAll('[data-sdel]').forEach(b=>b.addEventListener('click',async()=>{ const i=+b.dataset.sdel; const id=sets[i].imgId; sets.splice(i,1); store.set(KEY,sets); if(id&&window.RampartMedia){ try{ await window.RampartMedia.del(id); }catch(e){} } renderSaved(); }));
+  (async()=>{ const imgs=$('saved-body').querySelectorAll('img[data-sidx]'); for(const im of imgs){ const url=await imgOf(sets[+im.dataset.sidx]); if(url) im.src=url; } })();
 }
-$('clear').onclick=()=>{ if(confirm('Clear all saved measurement sets?')){ sets=[]; store.set(KEY,sets); renderSaved(); } };
-$('export').onclick=()=>{ const b=new Blob([JSON.stringify(sets,null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='gauge-measurements.json'; a.click(); URL.revokeObjectURL(a.href); };
+$('clear').onclick=async()=>{ if(confirm('Clear all saved measurement sets?')){ const ids=sets.map(s=>s.imgId).filter(Boolean); sets=[]; store.set(KEY,sets); if(window.RampartMedia&&ids.length){ try{ await window.RampartMedia.del(ids); }catch(e){} } renderSaved(); } };
+$('export').onclick=async()=>{ const out=[]; for(const s of sets){ const c=Object.assign({},s); delete c.imgId; c.img=await imgOf(s); out.push(c); } const b=new Blob([JSON.stringify(out,null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='gauge-measurements.json'; a.click(); URL.revokeObjectURL(a.href); };
 
 /* ---------- tabs ---------- */
 const tabs=document.querySelectorAll('.tab');
@@ -306,7 +310,12 @@ tabs.forEach(t=>t.addEventListener('click',()=>{
   document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active',p.id===t.dataset.tab));
 }));
 
-renderSaved();
+async function migrateLegacy(){
+  const M=window.RampartMedia;
+  if(M && M.available()){ let changed=false; for(const s of sets){ if(s.img && !s.imgId){ try{ s.imgId=await M.put(s.img); delete s.img; changed=true; }catch(err){} } } if(changed) store.set(KEY,sets); }
+  renderSaved();
+}
+migrateLegacy();
 </script>
 </body>
 </html>

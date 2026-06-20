@@ -20,7 +20,7 @@ The engagement reads left to right, from planning through the walk to the report
 | 04 | Safeconduct | The authorization letter, a present card with QR, a hash chained activity log, an ECDSA signed and verifiable seal, and a deadman check-in. |
 | 05 | Sweep | The walking survey, with scored feature types, photo evidence, voice dictation, and findings dropped as pins on a floor plan. |
 | 06 | Aether | Wireless and RF exposure reference and assessment. Identify and rate only, never transmit. |
-| 07 | Docket | The report compiler. Pulls findings from across the kit, scores overall risk, builds a photo appendix, exports CSV, and compares against a prior assessment. |
+| 07 | Docket | The report compiler. Pulls findings from across the kit, scores overall risk, builds photo and evidence appendices, frames the report from Remit and tracks remediation from Debrief, and exports the deliverable as a printable PDF, a self-contained HTML file with images inlined, JSON, or CSV. Compares against a prior assessment. |
 | 08 | Footprint | Public exposure assessment, with map deep links and an exposure register. |
 | 09 | Touchstone | Tap to identify a reader over NFC or Bluetooth, then hand off to Credential. Identify only, no clone. |
 | 10 | Quartermaster | Readiness and loadout checklist, authorization confirmed from Safeconduct, with a gear close out and return inventory. |
@@ -32,6 +32,11 @@ The engagement reads left to right, from planning through the walk to the report
 | 16 | Remit | Scope and threat model planner. Objective, modeled adversary, protected assets, and success criteria, compiled to a one page remit. |
 | 17 | Debrief | Post engagement hotwash and a remediation tracker that pulls the findings from the kit and tracks each fix to done. |
 | 18 | Lexicon | Doctrine and glossary reference, searchable and linked back to the module that puts each term to work. |
+| 19 | Preflight | Device capability self-check. Tests the camera, sensors, crypto, and storage the device offers and reports which modules will run on it. |
+| 20 | Acoustic | Relative sound level meter. Reads the ambient noise floor and frequency balance to judge masking noise and acoustic privacy. |
+| 21 | Patrol | Patrol logger. Logs timestamped passes at checkpoints and surfaces predictable cadence, coverage gaps, and unwatched stations as findings. |
+| 22 | Sightline | Camera coverage mapper. Places cameras on a plan, draws their fields of view, and estimates blind spots, raising coverage gaps as findings. |
+| 23 | Cache | Passphrase encrypted vault. Holds sensitive notes and secrets encrypted at rest with AES-GCM, unreadable without the passphrase. |
 
 ## How an engagement flows
 

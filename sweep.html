@@ -19,6 +19,8 @@
 <meta name="theme-color" content="#15191c">
 <link rel="apple-touch-icon" href="icon-192.png">
 <script src="gate.js"></script>
+<script src="core.js"></script>
+<script src="media.js"></script>
 <script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
 </head>
 <body>
@@ -65,6 +67,7 @@
       </div>
       <label class="fld"><span>Note (optional)</span><input id="note" placeholder="Context, exposure, mitigating controls"></label>
       <div class="row-actions" style="margin:-8px 0 6px;"><button class="btn ghost sm" id="dictate" type="button">Dictate note</button><span id="dictate-stat" style="align-self:center;font-family:var(--mono);font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:var(--mute);"></span></div>
+      <div class="row-actions" style="margin:-2px 0 8px;"><select id="attach-src" style="flex:1;min-width:150px;"><option value="">Recent readings from Flux, Lumen, Gauge, Acoustic</option></select><button class="btn ghost sm" id="attach-ins" type="button">Insert</button><button class="btn ghost sm" id="attach-refresh" type="button">Refresh</button></div>
       <label class="fld"><span>Photo (optional)</span>
         <input type="file" id="photo" accept="image/*" capture="environment">
       </label>
@@ -117,12 +120,6 @@
 </footer>
 
 <script>
-const $ = id => document.getElementById(id);
-function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
-const store = {
-  get(k,d){ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):d; }catch(e){ return d; } },
-  set(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){} }
-};
 
 /* ---------- feature schema (data driven; add a type here, no other code) ---------- */
 function rate(flags, allUnknown){
@@ -483,9 +480,16 @@ $('add').onclick=async()=>{
   const rec={
     type:def.label, loc, item:r.item, attrs,
     posture:$('sev').value, fix:$('fix').value.trim(),
-    note:$('note').value.trim(), photo:photoData, geo,
+    note:$('note').value.trim(), geo,
     time: editIdx>=0 ? finds[editIdx].time : new Date().toISOString()
   };
+  const M=window.RampartMedia;
+  const oldPhotoId = (editIdx>=0) ? finds[editIdx].photoId : null;
+  if(photoData){
+    if(M && M.available()){ try{ rec.photoId=await M.put(photoData); }catch(e){ rec.photo=photoData; } }
+    else rec.photo=photoData;
+  }
+  if(oldPhotoId && oldPhotoId!==rec.photoId && M){ try{ await M.del(oldPhotoId); }catch(e){} }
   if(editIdx>=0) finds[editIdx]=rec; else finds.push(rec);
   store.set(KEY,finds);
   sweepClear();
@@ -503,7 +507,7 @@ function render(){
   let h='<table class="tbl"><thead><tr><th>Location</th><th>Type</th><th>Feature</th><th>Severity</th><th>Recommendation</th><th></th></tr></thead><tbody>';
   sorted.forEach(({f,i})=>{
     h+='<tr><td>'+esc(f.loc)+
-       (f.photo?'<br><img src="'+f.photo+'" style="max-width:90px;border:1px solid var(--line);border-radius:2px;margin-top:4px;">':'')+
+       ((f.photo||f.photoId)?'<br><img data-fimg="'+i+'" style="max-width:90px;border:1px solid var(--line);border-radius:2px;margin-top:4px;">':'')+
        (f.geo?'<br><span style="color:var(--faint);font-size:12px;" class="mono">'+esc(f.geo)+'</span>':'')+
        (f.note?'<br><span style="color:var(--faint);font-size:12px;">'+esc(f.note)+'</span>':'')+'</td>'+
        '<td>'+esc(f.type)+'</td><td>'+esc(f.item)+'</td>'+
@@ -512,22 +516,27 @@ function render(){
        '<td style="white-space:nowrap;"><button class="btn ghost sm" data-edit="'+i+'">Edit</button> <button class="btn ghost sm" data-del="'+i+'">Remove</button></td></tr>';
   });
   body.innerHTML=h+'</tbody></table>';
-  body.querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click',()=>{ finds.splice(+b.dataset.del,1); store.set(KEY,finds); if(editIdx===+b.dataset.del) sweepClear(); render(); }));
-  body.querySelectorAll('[data-edit]').forEach(b=>b.addEventListener('click',()=>{
+  body.querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click',async()=>{ const i=+b.dataset.del; const pid=finds[i].photoId; finds.splice(i,1); store.set(KEY,finds); if(pid&&window.RampartMedia){ try{ await window.RampartMedia.del(pid); }catch(e){} } if(editIdx===i) sweepClear(); render(); }));
+  body.querySelectorAll('[data-edit]').forEach(b=>b.addEventListener('click',async()=>{
     editIdx=+b.dataset.edit; const f=finds[editIdx];
     const tkey=Object.keys(FEATURES).find(k=>FEATURES[k].label===f.type);
     if(tkey){ ftypeSel.value=tkey; buildFields(); }
     Object.entries(f.attrs||{}).forEach(([k,v])=>{ const s=$('dyn').querySelector('[data-k="'+k+'"]'); if(s) s.value=v; });
     recompute();
     $('loc').value=f.loc||''; $('note').value=f.note||''; $('sev').value=f.posture; $('fix').value=f.fix||'';
-    photoData=f.photo||null; showPhotoPrev();
+    photoData=f.photo||null;
+    if(!photoData && f.photoId && window.RampartMedia){ try{ photoData=(await window.RampartMedia.get(f.photoId))||null; }catch(e){} }
+    showPhotoPrev();
     $('add').textContent='Update finding'; $('cancel').style.display='inline-block';
     document.querySelector('.tab[data-tab="survey"]').click();
     $('loc').scrollIntoView({behavior:'smooth',block:'center'});
   }));
+  hydratePhotos();
 }
-$('export').onclick=()=>{ const b=new Blob([JSON.stringify(finds,null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='sweep-findings.json'; a.click(); URL.revokeObjectURL(a.href); };
-$('clear').onclick=()=>{ if(confirm('Clear all findings?')){ finds=[]; store.set(KEY,finds); render(); } };
+async function imgOfPhoto(f){ if(f.photo) return f.photo; if(f.photoId && window.RampartMedia) return (await window.RampartMedia.get(f.photoId))||''; return ''; }
+async function hydratePhotos(){ const imgs=$('list').querySelectorAll('img[data-fimg]'); for(const im of imgs){ const url=await imgOfPhoto(finds[+im.dataset.fimg]); if(url) im.src=url; } }
+$('export').onclick=async()=>{ const out=[]; for(const f of finds){ const c=Object.assign({},f); if(!c.photo && c.photoId && window.RampartMedia){ try{ const u=await window.RampartMedia.get(c.photoId); if(u) c.photo=u; }catch(e){} } delete c.photoId; out.push(c); } const b=new Blob([JSON.stringify(out,null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='sweep-findings.json'; a.click(); URL.revokeObjectURL(a.href); };
+$('clear').onclick=async()=>{ if(confirm('Clear all findings?')){ const ids=finds.map(f=>f.photoId).filter(Boolean); finds=[]; store.set(KEY,finds); if(window.RampartMedia&&ids.length){ try{ await window.RampartMedia.del(ids); }catch(e){} } render(); } };
 render();
 
 /* ---------- voice dictation ---------- */
@@ -565,18 +574,24 @@ $('plan-img').addEventListener('change',e=>{
     const max=1400; let w=img.width,h=img.height;
     if(w>h&&w>max){h=Math.round(h*max/w);w=max;} else if(h>max){w=Math.round(w*max/h);h=max;}
     const cv=document.createElement('canvas'); cv.width=w; cv.height=h; cv.getContext('2d').drawImage(img,0,0,w,h);
-    plan.img=cv.toDataURL('image/jpeg',0.7); store.set(PKEY,plan); renderPlan();
+    const dataURL=cv.toDataURL('image/jpeg',0.7);
+    const M=window.RampartMedia;
+    if(M && M.available()){
+      const old=plan.imgId;
+      M.put(dataURL).then(id=>{ plan.imgId=id; delete plan.img; store.set(PKEY,plan); if(old){ M.del(old).catch(()=>{}); } renderPlan(); }).catch(()=>{ plan.img=dataURL; store.set(PKEY,plan); renderPlan(); });
+    } else { plan.img=dataURL; store.set(PKEY,plan); renderPlan(); }
   }; img.src=rd.result; };
   rd.readAsDataURL(file);
 });
 function renderPlan(){
-  if(!plan.img){ planStage.innerHTML='<div class="empty" style="display:block;">Upload a plan to begin.</div>'; $('pin-list').innerHTML=''; return; }
-  let h='<img id="plan-pic" src="'+plan.img+'" style="display:block;max-width:100%;height:auto;border:1px solid var(--line-2);border-radius:2px;cursor:crosshair;">';
+  if(!plan.img && !plan.imgId){ planStage.innerHTML='<div class="empty" style="display:block;">Upload a plan to begin.</div>'; $('pin-list').innerHTML=''; return; }
+  let h='<img id="plan-pic" style="display:block;max-width:100%;height:auto;border:1px solid var(--line-2);border-radius:2px;cursor:crosshair;">';
   plan.pins.forEach((p,i)=>{
     const col={crit:'var(--crimson)',weak:'var(--amber)',strong:'var(--olive)',info:'var(--steel)'}[p.posture]||'var(--steel)';
     h+='<span data-pin="'+i+'" title="'+esc(p.label)+'" style="position:absolute;left:'+p.x+'%;top:'+p.y+'%;transform:translate(-50%,-50%);width:16px;height:16px;border-radius:50%;background:'+col+';border:2px solid #15191c;box-shadow:0 0 0 1px '+col+';cursor:pointer;"></span>';
   });
   planStage.innerHTML=h;
+  (async()=>{ const pic=$('plan-pic'); if(pic){ let url=plan.img; if(!url && plan.imgId && window.RampartMedia){ try{ url=await window.RampartMedia.get(plan.imgId); }catch(e){} } if(url) pic.src=url; } })();
   $('plan-pic').addEventListener('click',ev=>{
     const r=ev.target.getBoundingClientRect();
     const x=((ev.clientX-r.left)/r.width*100).toFixed(1), y=((ev.clientY-r.top)/r.height*100).toFixed(1);
@@ -594,6 +609,21 @@ function renderPlan(){
     : '<div style="color:var(--faint);font-size:13px;">No pins yet. Tap the plan to drop one.</div>';
 }
 
+/* ---------- attach readings from Flux, Lumen, Gauge ---------- */
+let attachOpts=[];
+function buildAttachOptions(){
+  const opts=[];
+  (store.get('rampart.flux.log',[])||[]).slice(-8).reverse().forEach(m=>{ opts.push({label:'Flux: peak dev '+m.deviation+' uT'+(m.loc?' @ '+m.loc:''), text:'Flux peak deviation '+m.deviation+' uT'+(m.field!=null?' (field '+m.field+' uT)':'')}); });
+  (store.get('rampart.lumen.log',[])||[]).slice(-8).reverse().forEach(r=>{ const lv=(r.lux!=null?r.lux+' lux':'level '+r.level); opts.push({label:'Lumen: '+lv+', uniformity '+r.uniformity+'%'+(r.loc?' @ '+r.loc:''), text:'Lumen '+lv+', uniformity '+r.uniformity+' percent'}); });
+  (store.get('rampart.gauge.log',[])||[]).slice(-8).reverse().forEach(s=>{ const ms=(s.measurements||[]).map(m=>m.label+' '+m.len+s.unit).join(', '); opts.push({label:'Gauge: '+(ms||'set')+(s.loc?' @ '+s.loc:''), text:'Gauge '+(ms||'measurement')}); });
+  (store.get('rampart.acoustic.log',[])||[]).slice(-8).reverse().forEach(a=>{ opts.push({label:'Acoustic: level '+a.level+', avg '+a.avg+(a.loc?' @ '+a.loc:''), text:'Acoustic level '+a.level+', average '+a.avg+(a.dbfs!=null?' ('+a.dbfs+' dBFS)':'')}); });
+  attachOpts=opts;
+  $('attach-src').innerHTML='<option value="">Recent readings from Flux, Lumen, Gauge, Acoustic</option>'+opts.map((o,i)=>'<option value="'+i+'">'+esc(o.label)+'</option>').join('');
+}
+$('attach-ins').onclick=()=>{ const i=$('attach-src').value; if(i==='') return; const t=attachOpts[+i].text; const cur=$('note').value; $('note').value=(cur?cur+' ':'')+'['+t+']'; };
+$('attach-refresh').onclick=buildAttachOptions;
+buildAttachOptions();
+
 /* ---------- tabs ---------- */
 const tabs=document.querySelectorAll('.tab');
 tabs.forEach(t=>t.addEventListener('click',()=>{
@@ -601,6 +631,18 @@ tabs.forEach(t=>t.addEventListener('click',()=>{
   document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active',p.id===t.dataset.tab));
   if(t.dataset.tab==='plan'){ refreshPinSrc(); renderPlan(); }
 }));
+
+async function migrateLegacy(){
+  const M=window.RampartMedia;
+  if(M && M.available()){
+    let changed=false;
+    for(const f of finds){ if(f.photo && !f.photoId){ try{ f.photoId=await M.put(f.photo); delete f.photo; changed=true; }catch(e){} } }
+    if(changed) store.set(KEY,finds);
+    if(plan.img && !plan.imgId){ try{ plan.imgId=await M.put(plan.img); delete plan.img; store.set(PKEY,plan); }catch(e){} }
+  }
+  render();
+}
+migrateLegacy();
 </script>
 </body>
 </html>

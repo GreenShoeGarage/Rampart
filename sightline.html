@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<!-- SIGHTLINE (Field Instrument 036, Mod 22) - Rampart Field Kit. License: GPL-3.0 -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SIGHTLINE - Rampart Field Kit</title>
+<meta name="description" content="Camera coverage mapper for the surveillance assessment. Places cameras on a plan, draws their fields of view, and estimates blind spots. Runs offline.">
+<link rel="stylesheet" href="theme.css">
+<style>
+  #plan-stage { position:relative; display:inline-block; max-width:100%; line-height:0; }
+  #plan-pic { display:block; max-width:100%; height:auto; border:1px solid var(--line-2); border-radius:2px; }
+  #overlay { position:absolute; left:0; top:0; width:100%; height:100%; pointer-events:none; }
+  #plan-pic.placing { cursor:crosshair; }
+  .cov-readout { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-top:12px; }
+  .cov { background:var(--plate); border:1px solid var(--line); border-radius:var(--rad); padding:10px 12px; text-align:center; }
+  .cov .l { font-family:var(--mono); font-size:9.5px; letter-spacing:0.14em; text-transform:uppercase; color:var(--steel); }
+  .cov .v { font-family:var(--display); font-weight:700; font-size:22px; color:var(--cream); margin-top:3px; }
+  .chips { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+  .chip { font-family:var(--mono); font-size:11.5px; padding:5px 10px; border-radius:14px; border:1px solid var(--line-2); background:var(--plate); color:var(--mute); cursor:pointer; }
+  .chip.sel { border-color:var(--amber); color:var(--amber); }
+  .ctrl { margin-top:6px; }
+  .ctrl label { display:block; font-family:var(--mono); font-size:10px; letter-spacing:0.12em; text-transform:uppercase; color:var(--steel); margin:10px 0 4px; }
+  .ctrl input[type=range] { width:100%; }
+  .ctrl .val { color:var(--cream); font-family:var(--mono); font-size:12px; }
+  .reflist { color:var(--mute); font-size:14.5px; line-height:1.8; }
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#15191c">
+<link rel="apple-touch-icon" href="icon-192.png">
+<script src="gate.js"></script>
+<script src="core.js"></script>
+<script src="media.js"></script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</head>
+<body>
+<div class="band"><span>Authorized assessment use only</span></div>
+
+<header class="masthead">
+  <div class="wrap">
+    <div class="crumbs"><a href="index.html">Rampart</a><span class="sep">/</span><span>Mod 22</span><span class="sep">/</span><span>Sightline</span></div>
+    <div class="kit-title"><span class="name">Sightline</span><span class="no">036 · 22</span></div>
+    <div class="kit-sub">Coverage Mapper</div>
+    <p class="kit-lede">Map what the cameras can see, and just as importantly what they cannot. Drop each camera on the plan, set its aim, field of view, and reach, and Sightline draws the coverage and estimates the blind spots. The gaps that fall over an entry, an approach, or a sensitive room are the findings the survey is looking for.</p>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" aria-selected="true"  data-tab="map">Map</button>
+    <button class="tab" role="tab" aria-selected="false" data-tab="findings">Findings</button>
+    <button class="tab" role="tab" aria-selected="false" data-tab="reference">Reference</button>
+  </div>
+
+  <!-- MAP -->
+  <section class="panel active" id="map">
+    <div class="card">
+      <label class="fld" id="upload-fld"><span>Floor plan or site image</span><input type="file" id="plan-img" accept="image/*"></label>
+      <div id="plan-stage" style="display:none;">
+        <img id="plan-pic" alt="">
+        <canvas id="overlay"></canvas>
+      </div>
+      <div class="row-actions" id="map-tools" style="display:none;margin-top:12px;">
+        <button class="btn" id="place">Place camera</button>
+        <label style="display:flex;align-items:center;gap:7px;font-size:13px;color:var(--mute);align-self:center;"><input type="checkbox" id="blind" checked> Show blind spots</label>
+        <button class="btn ghost sm" id="plan-clear">Remove plan</button>
+      </div>
+      <div class="cov-readout" id="cov-readout" style="display:none;">
+        <div class="cov"><div class="l">Cameras</div><div class="v" id="cov-cams">0</div></div>
+        <div class="cov"><div class="l">Est. coverage</div><div class="v" id="cov-pct">--</div></div>
+        <div class="cov"><div class="l">Blind area</div><div class="v" id="cov-blind">--</div></div>
+      </div>
+    </div>
+
+    <div class="card" id="cam-panel" style="display:none;">
+      <h3 style="margin-top:0;">Cameras</h3>
+      <div class="chips" id="chips"></div>
+      <div id="cam-edit" style="display:none;">
+        <div class="two-col" style="margin-top:14px;">
+          <label class="fld"><span>Label</span><input id="c-label" placeholder="e.g. Dome over lobby"></label>
+          <label class="fld"><span>Type</span><select id="c-type"><option value="fixed">Fixed (70°)</option><option value="wide">Wide (100°)</option><option value="narrow">Narrow (40°)</option><option value="dome">Dome / PTZ (360°)</option></select></label>
+        </div>
+        <div class="ctrl">
+          <label>Aim <span class="val" id="v-bearing">0°</span></label>
+          <input type="range" id="c-bearing" min="0" max="359" value="0">
+          <label>Field of view <span class="val" id="v-fov">90°</span></label>
+          <input type="range" id="c-fov" min="20" max="360" value="90">
+          <label>Reach <span class="val" id="v-range">30</span></label>
+          <input type="range" id="c-range" min="5" max="80" value="30">
+        </div>
+        <label class="fld" style="margin-top:10px;"><span>Note</span><input id="c-note" placeholder="e.g. blind below, stairwell uncovered"></label>
+        <div class="row-actions"><button class="btn ghost sm" id="c-remove">Remove camera</button></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FINDINGS -->
+  <section class="panel" id="findings">
+    <div class="card">
+      <h3 style="margin-top:0;">Raise a coverage finding</h3>
+      <p style="color:var(--faint);font-size:13px;margin:0 0 10px;">Name the area the gap exposes and the assessed severity. Coverage findings carry into Docket with the survey.</p>
+      <div class="two-col">
+        <label class="fld"><span>Location of gap</span><input id="f-loc" placeholder="e.g. East fire exit"></label>
+        <label class="fld"><span>Severity</span><select id="f-sev"><option value="crit">Critical</option><option value="weak" selected>Weak</option><option value="info">Note</option></select></label>
+      </div>
+      <label class="fld"><span>Detail</span><input id="f-note" placeholder="e.g. No camera covers the exit or its approach"></label>
+      <div class="row-actions"><button class="btn" id="f-add">Raise finding</button></div>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0;">Raised findings</h3>
+      <div id="finds" style="margin-top:8px;"></div>
+    </div>
+  </section>
+
+  <!-- REFERENCE -->
+  <section class="panel" id="reference">
+    <div class="card">
+      <h3>Using the map</h3>
+      <div class="reflist">
+        The coverage is a rough geometric estimate, not a verified view. It assumes a clear line of sight to the reach you set, so it does not know about walls, pillars, shelving, or glare that block a real camera. Use it to find candidate blind spots, then confirm them at the monitor or by walking into the gap.<br>
+        Set each camera honestly. A fixed camera sees a cone, so set its aim and field of view to match what it actually frames. A dome or PTZ can sweep, so model it as full coverage within reach, and note that a PTZ only watches one direction at a time.<br>
+        Reach is relative to the plan, not a calibrated distance. Shorten it where light is poor or the lens is wide, since detail falls off with distance.
+      </div>
+    </div>
+    <div class="card">
+      <h3>What to look for</h3>
+      <div class="reflist">
+        Blind spots over entries and approaches are the priority. A gap above a door, a loading bay, or a perimeter path is an unwatched way in.<br>
+        Single coverage with no overlap is fragile. Where one camera is the only eye on a critical point, an outage or an obstruction blinds it entirely.<br>
+        Coverage that points the wrong way is a common finding, a camera aimed at a wall or down an empty corridor while the real approach sits outside its cone.<br>
+        Record the confirmed gaps as findings here and capture the camera and the gap in Exhibit.
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="wrap foot">
+  <span><a href="index.html" style="color:var(--mute);">&larr; Back to kit</a></span>
+  <span>Sightline · Mod 22</span>
+</footer>
+
+<script>
+const PKEY='rampart.sightline.plan';
+const FKEY='rampart.sightline.findings';
+let plan = store.get(PKEY, { cameras:[] });
+if(!plan.cameras) plan.cameras=[];
+let finds = store.get(FKEY, []);
+let selId=null, placing=false;
+
+const stage=$('plan-stage'), pic=$('plan-pic'), canvas=$('overlay');
+const TYPE_FOV={ fixed:70, wide:100, narrow:40, dome:360 };
+
+/* ---------- geometry (pure) ---------- */
+function normAngle(a){ while(a>Math.PI) a-=2*Math.PI; while(a<-Math.PI) a+=2*Math.PI; return a; }
+function pointCovered(px, py, W, H, cams){
+  for(let k=0;k<cams.length;k++){
+    const c=cams[k];
+    const cx=c.x/100*W, cy=c.y/100*H, r=c.range/100*W;
+    const dx=px-cx, dy=py-cy, dist=Math.hypot(dx,dy);
+    if(dist>r) continue;
+    if(c.fov>=360) return true;
+    const ang=Math.atan2(dy,dx);
+    const aim=(c.bearing-90)*Math.PI/180;
+    if(Math.abs(normAngle(ang-aim)) <= (c.fov/2)*Math.PI/180) return true;
+  }
+  return false;
+}
+function coverageStats(W, H, cams){
+  const GX=40, GY=30; let cov=0, tot=0;
+  for(let gy=0; gy<GY; gy++) for(let gx=0; gx<GX; gx++){
+    const px=(gx+0.5)/GX*W, py=(gy+0.5)/GY*H; tot++;
+    if(pointCovered(px,py,W,H,cams)) cov++;
+  }
+  return { pct:Math.round(cov/tot*100), covered:cov, total:tot };
+}
+
+/* ---------- draw ---------- */
+function redraw(){
+  if(!pic.clientWidth){ return; }
+  const W=pic.clientWidth, H=pic.clientHeight;
+  canvas.width=W; canvas.height=H;
+  const ctx=canvas.getContext('2d');
+  ctx.clearRect(0,0,W,H);
+  if($('blind').checked && plan.cameras.length){
+    const GX=40, GY=30, cw=W/GX, ch=H/GY;
+    ctx.fillStyle='rgba(187,69,58,0.16)';
+    for(let gy=0; gy<GY; gy++) for(let gx=0; gx<GX; gx++){
+      const px=(gx+0.5)/GX*W, py=(gy+0.5)/GY*H;
+      if(!pointCovered(px,py,W,H,plan.cameras)) ctx.fillRect(gx*cw,gy*ch,cw+0.5,ch+0.5);
+    }
+  }
+  plan.cameras.forEach(c=>{
+    const cx=c.x/100*W, cy=c.y/100*H, r=c.range/100*W;
+    const half=(c.fov>=360?360:c.fov)/2*Math.PI/180;
+    const aim=(c.bearing-90)*Math.PI/180;
+    ctx.beginPath();
+    if(c.fov>=360){ ctx.arc(cx,cy,r,0,2*Math.PI); }
+    else { ctx.moveTo(cx,cy); ctx.arc(cx,cy,r,aim-half,aim+half); ctx.closePath(); }
+    ctx.fillStyle='rgba(132,149,95,0.20)'; ctx.fill();
+    ctx.strokeStyle='rgba(132,149,95,0.55)'; ctx.lineWidth=1; ctx.stroke();
+    ctx.beginPath(); ctx.arc(cx,cy,5,0,2*Math.PI); ctx.fillStyle=(c.id===selId)?'#c79e50':'#9fb1bd'; ctx.fill();
+    ctx.lineWidth=1.5; ctx.strokeStyle='#15191c'; ctx.stroke();
+  });
+  updateCov();
+}
+function updateCov(){
+  $('cov-cams').textContent=plan.cameras.length;
+  if(!plan.cameras.length){ $('cov-pct').textContent='--'; $('cov-blind').textContent='--'; return; }
+  const s=coverageStats(pic.clientWidth||1000, pic.clientHeight||750, plan.cameras);
+  $('cov-pct').textContent=s.pct+'%';
+  $('cov-blind').textContent=(100-s.pct)+'%';
+}
+
+/* ---------- plan image (media store) ---------- */
+function showStage(has){ $('upload-fld').style.display=has?'none':'block'; stage.style.display=has?'inline-block':'none'; $('map-tools').style.display=has?'flex':'none'; $('cov-readout').style.display=has?'grid':'none'; $('cam-panel').style.display=has?'block':'none'; }
+async function loadPlanImage(){
+  let url=plan.img;
+  if(!url && plan.imgId && window.RampartMedia){ try{ url=await window.RampartMedia.get(plan.imgId); }catch(e){} }
+  if(url){ pic.onload=()=>redraw(); pic.src=url; showStage(true); renderChips(); } else { showStage(false); }
+}
+$('plan-img').addEventListener('change',e=>{
+  const file=e.target.files[0]; if(!file) return;
+  const img=new Image(), rd=new FileReader();
+  rd.onload=()=>{ img.onload=()=>{
+    const max=1600; let w=img.width,h=img.height;
+    if(w>h&&w>max){h=Math.round(h*max/w);w=max;} else if(h>max){w=Math.round(w*max/h);h=max;}
+    const cv=document.createElement('canvas'); cv.width=w; cv.height=h; cv.getContext('2d').drawImage(img,0,0,w,h);
+    const dataURL=cv.toDataURL('image/jpeg',0.72);
+    const M=window.RampartMedia;
+    if(M && M.available()){ const old=plan.imgId; M.put(dataURL).then(id=>{ plan.imgId=id; delete plan.img; store.set(PKEY,plan); if(old) M.del(old).catch(()=>{}); loadPlanImage(); }).catch(()=>{ plan.img=dataURL; store.set(PKEY,plan); loadPlanImage(); }); }
+    else { plan.img=dataURL; store.set(PKEY,plan); loadPlanImage(); }
+  }; img.src=rd.result; };
+  rd.readAsDataURL(file);
+});
+$('plan-clear').onclick=()=>{
+  if(!confirm('Remove the plan and all placed cameras?')) return;
+  const ids=plan.imgId?[plan.imgId]:[];
+  plan={ cameras:[] }; selId=null; store.set(PKEY,plan);
+  if(window.RampartMedia && ids.length){ window.RampartMedia.del(ids).catch(()=>{}); }
+  showStage(false); pic.src=''; renderChips(); $('cam-edit').style.display='none';
+};
+
+/* ---------- place + select ---------- */
+$('place').onclick=()=>{ placing=!placing; pic.classList.toggle('placing',placing); $('place').textContent=placing?'Tap the plan':'Place camera'; };
+pic.addEventListener('click',ev=>{
+  if(!placing) return;
+  const r=pic.getBoundingClientRect();
+  const x=((ev.clientX-r.left)/r.width*100), y=((ev.clientY-r.top)/r.height*100);
+  const c={ id:'cam'+Date.now().toString(36), x:+x.toFixed(1), y:+y.toFixed(1), bearing:0, fov:70, range:30, type:'fixed', label:'Camera '+(plan.cameras.length+1), note:'' };
+  plan.cameras.push(c); store.set(PKEY,plan);
+  placing=false; pic.classList.remove('placing'); $('place').textContent='Place camera';
+  selId=c.id; renderChips(); selectCam(c.id); redraw();
+});
+function renderChips(){
+  if(!plan.cameras.length){ $('chips').innerHTML='<span style="color:var(--faint);font-size:13px;">No cameras yet. Tap Place camera, then tap the plan.</span>'; return; }
+  $('chips').innerHTML=plan.cameras.map(c=>'<button class="chip'+(c.id===selId?' sel':'')+'" data-sel="'+c.id+'">'+esc(c.label||'Camera')+'</button>').join('');
+  $('chips').querySelectorAll('[data-sel]').forEach(b=>b.addEventListener('click',()=>selectCam(b.dataset.sel)));
+}
+function selectCam(id){
+  selId=id; const c=plan.cameras.find(x=>x.id===id); if(!c){ $('cam-edit').style.display='none'; return; }
+  $('cam-edit').style.display='block';
+  $('c-label').value=c.label||''; $('c-type').value=c.type||'fixed'; $('c-note').value=c.note||'';
+  $('c-bearing').value=c.bearing; $('v-bearing').textContent=c.bearing+'°';
+  $('c-fov').value=c.fov; $('v-fov').textContent=c.fov+'°';
+  $('c-range').value=c.range; $('v-range').textContent=c.range;
+  renderChips(); redraw();
+}
+function curCam(){ return plan.cameras.find(x=>x.id===selId); }
+function bindCam(id, ev, fn){ $(id).addEventListener(ev,()=>{ const c=curCam(); if(!c) return; fn(c); store.set(PKEY,plan); redraw(); }); }
+bindCam('c-label','input',c=>{ c.label=$('c-label').value; renderChips(); });
+bindCam('c-note','input',c=>{ c.note=$('c-note').value; });
+$('c-type').addEventListener('change',()=>{ const c=curCam(); if(!c) return; c.type=$('c-type').value; c.fov=TYPE_FOV[c.type]||c.fov; $('c-fov').value=c.fov; $('v-fov').textContent=c.fov+'°'; store.set(PKEY,plan); redraw(); });
+bindCam('c-bearing','input',c=>{ c.bearing=+$('c-bearing').value; $('v-bearing').textContent=c.bearing+'°'; });
+bindCam('c-fov','input',c=>{ c.fov=+$('c-fov').value; $('v-fov').textContent=c.fov+'°'; });
+bindCam('c-range','input',c=>{ c.range=+$('c-range').value; $('v-range').textContent=c.range; });
+$('c-remove').onclick=()=>{ const c=curCam(); if(!c) return; if(!confirm('Remove '+(c.label||'this camera')+'?')) return; plan.cameras=plan.cameras.filter(x=>x.id!==selId); selId=null; store.set(PKEY,plan); $('cam-edit').style.display='none'; renderChips(); redraw(); };
+
+/* ---------- findings ---------- */
+$('f-add').onclick=()=>{
+  const loc=$('f-loc').value.trim(); if(!loc){ return; }
+  finds.push({ type:'Coverage', loc:loc, item:'Surveillance blind spot', posture:$('f-sev').value, fix:'Reposition or add a camera so the gap is covered, or confirm coverage at the monitor.', note:$('f-note').value.trim(), time:new Date().toISOString() });
+  store.set(FKEY, finds);
+  $('f-loc').value=''; $('f-note').value='';
+  renderFinds();
+};
+const SEVLBL={crit:'Critical',weak:'Weak',info:'Note'}, SEVPILL={crit:'pill crit',weak:'pill weak',info:'pill info'};
+function renderFinds(){
+  if(!finds.length){ $('finds').innerHTML='<div class="empty">No coverage findings raised yet.</div>'; return; }
+  let h='<table class="tbl"><thead><tr><th>Location</th><th>Finding</th><th>Severity</th><th></th></tr></thead><tbody>';
+  finds.forEach((f,i)=>{ h+='<tr><td>'+esc(f.loc)+'</td><td>'+esc(f.item)+(f.note?'<br><span style="color:var(--faint);font-size:12px;">'+esc(f.note)+'</span>':'')+'</td><td><span class="'+(SEVPILL[f.posture]||'pill weak')+'">'+(SEVLBL[f.posture]||'Weak')+'</span></td><td><button class="btn ghost sm" data-fdel="'+i+'">Remove</button></td></tr>'; });
+  $('finds').innerHTML=h+'</tbody></table>';
+  $('finds').querySelectorAll('[data-fdel]').forEach(b=>b.addEventListener('click',()=>{ finds.splice(+b.dataset.fdel,1); store.set(FKEY,finds); renderFinds(); }));
+}
+
+/* ---------- tabs + init ---------- */
+const tabs=document.querySelectorAll('.tab');
+tabs.forEach(t=>t.addEventListener('click',()=>{
+  tabs.forEach(x=>x.setAttribute('aria-selected',x===t?'true':'false'));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active',p.id===t.dataset.tab));
+  if(t.dataset.tab==='map') redraw();
+}));
+$('blind').addEventListener('change',redraw);
+window.addEventListener('resize',()=>{ if(stage.style.display!=='none') redraw(); });
+
+loadPlanImage();
+renderChips();
+renderFinds();
+</script>
+</body>
+</html>

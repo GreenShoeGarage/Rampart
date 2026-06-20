@@ -26,6 +26,8 @@
 <meta name="theme-color" content="#15191c">
 <link rel="apple-touch-icon" href="icon-192.png">
 <script src="gate.js"></script>
+<script src="core.js"></script>
+<script src="media.js"></script>
 <script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
 </head>
 <body>
@@ -110,12 +112,6 @@
 </footer>
 
 <script>
-const $ = id => document.getElementById(id);
-function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
-const store = {
-  get(k,d){ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):d; }catch(e){ return d; } },
-  set(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); return true; }catch(e){ return false; } }
-};
 const KEY='rampart.exhibit.log';
 let log = store.get(KEY, []);
 
@@ -189,10 +185,13 @@ $('add').onclick=async()=>{
     time: new Date().toISOString(),
     caption: $('cap').value.trim(),
     loc: $('loc').value.trim(),
-    geo,
-    img: captured
+    geo
   };
-  e.imageHash = await sha256(e.img);
+  e.imageHash = await sha256(captured);
+  const M = window.RampartMedia;
+  if(M && M.available()){
+    try{ e.imgId = await M.put(captured); }catch(err){ e.img = captured; }
+  } else { e.img = captured; }
   const prev = log.length ? log[log.length-1].chain : '0';
   e.prev = prev;
   e.chain = await chainHash(prev, e);
@@ -210,23 +209,44 @@ $('add').onclick=async()=>{
 
 /* ---------- register ---------- */
 function shortHash(h){ return h ? h.slice(0,12) : '-'; }
+async function imgOf(e){
+  if(e.img) return e.img;
+  if(e.imgId && window.RampartMedia){ return (await window.RampartMedia.get(e.imgId)) || ''; }
+  return '';
+}
 function renderReg(){
   $('reg-summary').textContent = log.length ? (log.length+' exhibit'+(log.length===1?'':'s')+' on file') : '';
   if(!log.length){ $('reg').innerHTML='<div class="empty" style="grid-column:1/-1;">No exhibits captured yet.</div>'; return; }
   $('reg').innerHTML = log.map((e,i)=>{
     const g = e.geo ? esc(e.geo.lat.toFixed(5)+', '+e.geo.lon.toFixed(5)+' ('+Math.round(e.geo.acc)+'m)') : 'No location';
     const map = e.geo ? ' · <a href="https://www.google.com/maps?q='+e.geo.lat+','+e.geo.lon+'" target="_blank" rel="noopener" style="color:var(--steel);">map</a>' : '';
-    return '<div class="ev"><img src="'+e.img+'" alt="">'+
+    return '<div class="ev"><img data-idx="'+i+'" alt="">'+
       '<div class="meta"><div class="seq">Exhibit '+String(i+1).padStart(3,'0')+'</div>'+
       '<div class="cap">'+(esc(e.caption)||'<span style="color:var(--faint);">No caption</span>')+'</div>'+
       '<div class="sub">'+esc((e.time||'').replace('T',' ').slice(0,19))+'<br>'+(esc(e.loc)||'-')+'<br>'+g+map+'<br>img '+shortHash(e.imageHash)+'<br>seal '+shortHash(e.chain)+'</div></div></div>';
   }).join('');
+  hydrate();
 }
-$('clear').onclick=()=>{ if(confirm('Clear the evidence register? Export first if you need to keep it.')){ log=[]; store.set(KEY,log); renderReg(); } };
-$('export').onclick=()=>{
-  const bundle={ kind:'rampart-evidence-bundle', exported:new Date().toISOString(), count:log.length, exhibits:log };
+async function hydrate(){
+  const imgs=$('reg').querySelectorAll('img[data-idx]');
+  for(const im of imgs){ const url=await imgOf(log[+im.dataset.idx]); if(url) im.src=url; }
+}
+$('clear').onclick=async()=>{
+  if(confirm('Clear the evidence register? Export first if you need to keep it.')){
+    const ids=log.map(e=>e.imgId).filter(Boolean);
+    log=[]; store.set(KEY,log);
+    if(window.RampartMedia && ids.length){ try{ await window.RampartMedia.del(ids); }catch(e){} }
+    renderReg();
+  }
+};
+$('export').onclick=async()=>{
+  $('add-stat').textContent='Building bundle';
+  const exhibits=[];
+  for(const e of log){ const c=Object.assign({}, e); delete c.imgId; c.img=await imgOf(e); exhibits.push(c); }
+  const bundle={ kind:'rampart-evidence-bundle', exported:new Date().toISOString(), count:exhibits.length, exhibits:exhibits };
   const b=new Blob([JSON.stringify(bundle,null,2)],{type:'application/json'});
   const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='exhibit-bundle.json'; a.click(); URL.revokeObjectURL(a.href);
+  $('add-stat').textContent='';
 };
 
 /* ---------- verify ---------- */
@@ -234,7 +254,7 @@ async function verifyChain(entries){
   let prev='0';
   for(let i=0;i<entries.length;i++){
     const e=entries[i];
-    const ih=await sha256(e.img||'');
+    const ih=await sha256(await imgOf(e));
     if(ih!==e.imageHash) return { ok:false, at:i+1, why:'image does not match its fingerprint' };
     if(e.prev!==prev) return { ok:false, at:i+1, why:'chain link does not match the previous exhibit' };
     const ch=await chainHash(prev, e);
@@ -274,7 +294,16 @@ tabs.forEach(t=>t.addEventListener('click',()=>{
   document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active',p.id===t.dataset.tab));
 }));
 
-renderReg();
+async function migrateLegacy(){
+  const M=window.RampartMedia;
+  if(M && M.available()){
+    let changed=false;
+    for(const e of log){ if(e.img && !e.imgId){ try{ e.imgId=await M.put(e.img); delete e.img; changed=true; }catch(err){} } }
+    if(changed) store.set(KEY, log);
+  }
+  renderReg();
+}
+migrateLegacy();
 </script>
 </body>
 </html>

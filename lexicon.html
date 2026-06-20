@@ -24,6 +24,7 @@
 <meta name="theme-color" content="#15191c">
 <link rel="apple-touch-icon" href="icon-192.png">
 <script src="gate.js"></script>
+<script src="core.js"></script>
 <script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
 </head>
 <body>
@@ -53,8 +54,6 @@
 </footer>
 
 <script>
-const $ = id => document.getElementById(id);
-function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 
 const HREF={ Footprint:'footprint.html', Sweep:'sweep.html', Tumbler:'tumbler.html', Credential:'credential.html',
   Aether:'aether.html', Touchstone:'touchstone.html', Safeconduct:'safeconduct.html', Docket:'docket.html',

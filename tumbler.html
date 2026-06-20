@@ -10,6 +10,7 @@
 <meta name="theme-color" content="#15191c">
 <link rel="apple-touch-icon" href="icon-192.png">
 <script src="gate.js"></script>
+<script src="core.js"></script>
 <script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
 </head>
 <body>
@@ -237,10 +238,6 @@ tabs.forEach(t => t.addEventListener('click', () => {
 }));
 
 /* ---------- safe storage ---------- */
-const store = {
-  get(k, d){ try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch(e){ return d; } },
-  set(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} }
-};
 
 /* ---------- inventory ---------- */
 const KEY_INV = 'rampart.tumbler.inventory';
@@ -253,7 +250,6 @@ function gradePill(g){
   if(g==='Grade 3') return '<span class="pill crit">'+g+'</span>';
   return '<span class="pill info">'+g+'</span>';
 }
-function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 
 let editIdx = -1;
 const addBtn = document.getElementById('add');

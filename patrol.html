@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<!-- PATROL (Field Instrument 036, Mod 21) - Rampart Field Kit. License: GPL-3.0 -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PATROL - Rampart Field Kit</title>
+<meta name="description" content="Patrol logger for the guard force assessment. Logs timestamped passes at checkpoints and surfaces predictable cadence, coverage gaps, and unwatched stations. Runs offline.">
+<link rel="stylesheet" href="theme.css">
+<style>
+  .stations { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:12px; }
+  .station { background:var(--plate); border:1px solid var(--line-2); border-radius:var(--rad); padding:12px; }
+  .station .sn { color:var(--cream); font-size:16px; font-weight:600; }
+  .station .meta { font-family:var(--mono); font-size:10.5px; color:var(--steel); margin:4px 0 10px; }
+  .station .note { color:var(--faint); font-size:12.5px; margin-bottom:8px; }
+  .pass-feed { font-family:var(--mono); font-size:12px; color:var(--mute); }
+  .pass-feed .row { display:flex; justify-content:space-between; gap:10px; padding:6px 0; border-bottom:1px solid var(--line); }
+  .pass-feed .row:last-child { border-bottom:0; }
+  .verdict { text-align:center; font-family:var(--display); font-weight:700; letter-spacing:0.05em; text-transform:uppercase; font-size:15px; margin-bottom:14px; padding:9px; border-radius:3px; }
+  .verdict.even { color:var(--olive); border:1px solid var(--olive); background:rgba(132,149,95,0.10); }
+  .verdict.some { color:var(--amber); border:1px solid var(--amber); background:rgba(199,158,80,0.10); }
+  .verdict.uneven { color:var(--crimson); border:1px solid var(--crimson); background:rgba(187,69,58,0.12); }
+  .issue { display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:9px 0; border-bottom:1px solid var(--line); }
+  .issue:last-child { border-bottom:0; }
+  .issue .body { flex:1; min-width:200px; }
+  .issue .it { color:var(--cream); font-size:14.5px; }
+  .issue .nt { color:var(--faint); font-size:12.5px; margin-top:2px; }
+  .reflist { color:var(--mute); font-size:14.5px; line-height:1.8; }
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#15191c">
+<link rel="apple-touch-icon" href="icon-192.png">
+<script src="gate.js"></script>
+<script src="core.js"></script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</head>
+<body>
+<div class="band"><span>Authorized assessment use only</span></div>
+
+<header class="masthead">
+  <div class="wrap">
+    <div class="crumbs"><a href="index.html">Rampart</a><span class="sep">/</span><span>Mod 21</span><span class="sep">/</span><span>Patrol</span></div>
+    <div class="kit-title"><span class="name">Patrol</span><span class="no">036 · 21</span></div>
+    <div class="kit-sub">Patrol Logger</div>
+    <p class="kit-lede">Audit the guard regime by logging it. Set the checkpoints, then tap a station each time a patrol passes it. Patrol times the intervals and shows where the regime is weak: a cadence regular enough to be timed and avoided, gaps that leave a station unwatched, and checkpoints the patrol never reaches. The weaknesses raise as findings for the report.</p>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" aria-selected="true"  data-tab="log">Patrol</button>
+    <button class="tab" role="tab" aria-selected="false" data-tab="analysis">Analysis</button>
+    <button class="tab" role="tab" aria-selected="false" data-tab="reference">Reference</button>
+  </div>
+
+  <!-- LOG -->
+  <section class="panel active" id="log">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+        <h3 style="margin:0;">Checkpoints</h3>
+        <label style="display:flex;align-items:center;gap:7px;font-size:13px;color:var(--mute);"><input type="checkbox" id="geo-on"> Tag location on pass</label>
+      </div>
+      <div class="two-col" style="margin-top:12px;">
+        <label class="fld"><span>New checkpoint</span><input id="st-name" placeholder="e.g. Loading dock door"></label>
+        <label class="fld"><span>Note (optional)</span><input id="st-note" placeholder="e.g. east side, camera 4"></label>
+      </div>
+      <div class="row-actions"><button class="btn" id="st-add">Add checkpoint</button></div>
+      <div class="stations" id="stations" style="margin-top:14px;"></div>
+    </div>
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+        <h3 style="margin:0;">Recent passes</h3>
+        <div class="row-actions" style="margin:0;"><button class="btn ghost sm" id="export">Export JSON</button><button class="btn ghost sm" id="clear-passes">Clear passes</button></div>
+      </div>
+      <div class="pass-feed" id="passes" style="margin-top:10px;"></div>
+    </div>
+  </section>
+
+  <!-- ANALYSIS -->
+  <section class="panel" id="analysis">
+    <div class="card">
+      <div class="verdict" id="verdict" style="display:none;"></div>
+      <p style="color:var(--faint);font-size:13px;margin:0 0 8px;">Statistics build from the logged passes. Three or more passes at a checkpoint are needed before cadence can be judged.</p>
+      <table class="tbl"><thead><tr><th>Checkpoint</th><th class="mono">Passes</th><th class="mono">Mean</th><th class="mono">Min</th><th class="mono">Max</th><th class="mono">Var</th></tr></thead><tbody id="stat-body"></tbody></table>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0;">Detected weaknesses</h3>
+      <div id="issues"></div>
+    </div>
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+        <h3 style="margin:0;">Raised findings</h3>
+        <button class="btn ghost sm" id="clear-finds">Clear findings</button>
+      </div>
+      <div id="finds" style="margin-top:10px;"></div>
+    </div>
+  </section>
+
+  <!-- REFERENCE -->
+  <section class="panel" id="reference">
+    <div class="card">
+      <h3>What to watch</h3>
+      <div class="reflist">
+        Predictable cadence is the headline weakness. A patrol that hits a checkpoint on a fixed interval can be timed, so an adversary simply waits out the pass. Low variation between intervals is the signal, and the fix is to randomize timing and route.<br>
+        Coverage gaps leave a station unwatched. A long stretch between passes, or a checkpoint the patrol never reaches, is an opening. Look for the longest gap against the mean.<br>
+        Route order can be learned the same way timing is. If the patrol always walks the same sequence, the time to any one point is predictable from the time at the last.<br>
+        Watch how patrols respond to a trigger as well, like a propped door or an alarm, since a regime that does not break its loop to investigate is a weakness in itself.
+      </div>
+    </div>
+    <div class="card">
+      <h3>Logging honestly</h3>
+      <div class="reflist">
+        Log only what you observe during an authorized assessment, and note the observation window so the statistics are read in context. A short window can make an irregular patrol look regular or the reverse.<br>
+        Capture supporting proof in Exhibit and record the confirmed weaknesses as findings here, which carry into Docket with the rest of the assessment.
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="wrap foot">
+  <span><a href="index.html" style="color:var(--mute);">&larr; Back to kit</a></span>
+  <span>Patrol · Mod 21</span>
+</footer>
+
+<script>
+const SKEY='rampart.patrol.stations';
+const LKEY='rampart.patrol.log';
+const FKEY='rampart.patrol.findings';
+let stations = store.get(SKEY, []);
+let passes = store.get(LKEY, []);
+let finds = store.get(FKEY, []);
+
+function getGeo(){
+  return new Promise(res=>{
+    if(!$('geo-on').checked || !navigator.geolocation){ res(null); return; }
+    navigator.geolocation.getCurrentPosition(
+      p=>res({lat:p.coords.latitude, lon:p.coords.longitude, acc:p.coords.accuracy}),
+      ()=>res(null), {timeout:8000, maximumAge:30000});
+  });
+}
+
+/* ---------- stations + passes ---------- */
+$('st-add').onclick=()=>{
+  const name=$('st-name').value.trim(); if(!name) return;
+  stations.push({ id:'st'+Date.now().toString(36), name:name, note:$('st-note').value.trim() });
+  store.set(SKEY, stations);
+  $('st-name').value=''; $('st-note').value='';
+  renderStations();
+};
+async function logPass(stId){
+  const st=stations.find(s=>s.id===stId); if(!st) return;
+  const e={ id:'pn'+Date.now().toString(36), st:stId, name:st.name, time:new Date().toISOString() };
+  passes.push(e); store.set(LKEY, passes);
+  renderStations(); renderPasses();
+  const geo=await getGeo();
+  if(geo){ e.geo=geo; store.set(LKEY, passes); }
+}
+function renderStations(){
+  if(!stations.length){ $('stations').innerHTML='<div class="empty" style="grid-column:1/-1;">No checkpoints yet. Add the stations on the patrol route.</div>'; return; }
+  $('stations').innerHTML = stations.map(s=>{
+    const sp=passes.filter(p=>p.st===s.id);
+    const last=sp.length?sp[sp.length-1].time:null;
+    const lastTxt=last?('last '+last.replace('T',' ').slice(11,19)):'no passes yet';
+    return '<div class="station"><div class="sn">'+esc(s.name)+'</div>'+
+      '<div class="meta">'+sp.length+' pass'+(sp.length===1?'':'es')+' · '+esc(lastTxt)+'</div>'+
+      (s.note?'<div class="note">'+esc(s.note)+'</div>':'')+
+      '<div class="row-actions" style="margin:0;"><button class="btn" data-pass="'+s.id+'">Log pass</button><button class="btn ghost sm" data-strm="'+s.id+'">Remove</button></div></div>';
+  }).join('');
+  $('stations').querySelectorAll('[data-pass]').forEach(b=>b.addEventListener('click',()=>logPass(b.dataset.pass)));
+  $('stations').querySelectorAll('[data-strm]').forEach(b=>b.addEventListener('click',()=>{
+    const id=b.dataset.strm; const st=stations.find(s=>s.id===id);
+    if(confirm('Remove checkpoint "'+(st?st.name:'')+'"? Its logged passes are kept.')){ stations=stations.filter(s=>s.id!==id); store.set(SKEY,stations); renderStations(); }
+  }));
+}
+function renderPasses(){
+  if(!passes.length){ $('passes').innerHTML='<div class="empty">No passes logged yet.</div>'; return; }
+  let h='';
+  passes.slice().reverse().slice(0,14).forEach((p)=>{
+    const idx=passes.indexOf(p);
+    h+='<div class="row"><span>'+esc(p.name)+(p.geo?' <span style="color:var(--steel);">geo</span>':'')+'</span><span>'+esc(p.time.replace('T',' ').slice(11,19))+' <button class="btn ghost sm" data-pdel="'+idx+'">x</button></span></div>';
+  });
+  $('passes').innerHTML=h;
+  $('passes').querySelectorAll('[data-pdel]').forEach(b=>b.addEventListener('click',()=>{ passes.splice(+b.dataset.pdel,1); store.set(LKEY,passes); renderStations(); renderPasses(); }));
+}
+$('clear-passes').onclick=()=>{ if(confirm('Clear all logged passes? Checkpoints are kept.')){ passes=[]; store.set(LKEY,passes); renderStations(); renderPasses(); } };
+$('export').onclick=()=>{ const out={ stations:stations, passes:passes }; const b=new Blob([JSON.stringify(out,null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='patrol-log.json'; a.click(); URL.revokeObjectURL(a.href); };
+
+/* ---------- analysis (pure stats) ---------- */
+function stationStats(times){
+  const n=times.length;
+  if(n<2) return { count:n, mean:null, min:null, max:null, cv:null };
+  const iv=[]; for(let i=1;i<n;i++) iv.push((times[i]-times[i-1])/60000);
+  const mean=iv.reduce((a,b)=>a+b,0)/iv.length;
+  const min=Math.min.apply(null,iv), max=Math.max.apply(null,iv);
+  let cv=null;
+  if(iv.length>=2){ const varc=iv.reduce((a,b)=>a+(b-mean)*(b-mean),0)/iv.length; cv=mean>0?Math.sqrt(varc)/mean:0; }
+  return { count:n, mean:mean, min:min, max:max, cv:cv };
+}
+function detectIssues(name, st){
+  const out=[];
+  if(st.count===0){ out.push({ loc:name, item:'Checkpoint never patrolled', posture:'weak', fix:'Add this checkpoint to the patrol route or assign coverage.', note:'No passes were logged at this checkpoint during the observation window.' }); return out; }
+  if(st.cv!=null && st.count>=3 && st.cv<0.20){
+    out.push({ loc:name, item:'Predictable cadence, about '+Math.round(st.mean)+' min', posture:'weak', fix:'Randomize patrol timing and route so the interval cannot be predicted.', note:'Intervals are highly regular, variation '+Math.round(st.cv*100)+' percent. A fixed cadence can be timed and waited out.' });
+  }
+  if(st.max!=null && st.mean!=null && st.count>=3 && st.max > 2*st.mean){
+    out.push({ loc:name, item:'Coverage gap up to '+Math.round(st.max)+' min', posture:'weak', fix:'Tighten the interval or add a checkpoint so no gap leaves the station unwatched.', note:'A pass interval reached '+Math.round(st.max)+' min against a mean of '+Math.round(st.mean)+' min.' });
+  }
+  return out;
+}
+function analyze(){
+  return stations.map(s=>{
+    const times=passes.filter(p=>p.st===s.id).map(p=>Date.parse(p.time)).filter(t=>!isNaN(t)).sort((a,b)=>a-b);
+    const st=stationStats(times);
+    return { station:s, stats:st, issues:detectIssues(s.name, st) };
+  });
+}
+function renderAnalysis(){
+  const rows=analyze();
+  const fmt=v=>v==null?'-':Math.round(v)+'m';
+  $('stat-body').innerHTML = rows.length ? rows.map(r=>{
+    const st=r.stats;
+    const cvtxt = st.cv==null ? '-' : Math.round(st.cv*100)+'%';
+    return '<tr><td>'+esc(r.station.name)+'</td><td class="mono">'+st.count+'</td><td class="mono">'+fmt(st.mean)+'</td><td class="mono">'+fmt(st.min)+'</td><td class="mono">'+fmt(st.max)+'</td><td class="mono">'+cvtxt+'</td></tr>';
+  }).join('') : '<tr><td colspan="6"><div class="empty">No checkpoints to analyze.</div></td></tr>';
+
+  // verdict
+  const issuesAll=rows.reduce((a,r)=>a.concat(r.issues),[]);
+  const visited=rows.filter(r=>r.stats.count>0).length;
+  const v=$('verdict'); v.style.display='block';
+  if(!stations.length){ v.style.display='none'; }
+  else if(issuesAll.length===0){ v.className='verdict even'; v.textContent=visited+' of '+stations.length+' checkpoints covered, no weaknesses detected yet'; }
+  else { v.className='verdict uneven'; v.textContent=issuesAll.length+' weakness'+(issuesAll.length===1?'':'es')+' detected across the route'; }
+
+  // detected issues with raise buttons
+  if(!issuesAll.length){ $('issues').innerHTML='<div class="empty">No weaknesses detected. Log more passes to build the picture.</div>'; }
+  else {
+    issuesAll._list=issuesAll;
+    $('issues').innerHTML=issuesAll.map((is,i)=>'<div class="issue"><div class="body"><div class="it">'+esc(is.loc)+': '+esc(is.item)+'</div><div class="nt">'+esc(is.note)+'</div></div><button class="btn ghost sm" data-raise="'+i+'">Raise as finding</button></div>').join('');
+    $('issues').querySelectorAll('[data-raise]').forEach(b=>b.addEventListener('click',()=>{ raiseFinding(issuesAll[+b.dataset.raise]); b.textContent='Raised'; b.disabled=true; }));
+  }
+  renderFinds();
+}
+function raiseFinding(is){
+  finds.push({ type:'Patrol', loc:is.loc, item:is.item, posture:is.posture||'weak', fix:is.fix||'', note:is.note||'', time:new Date().toISOString() });
+  store.set(FKEY, finds);
+  renderFinds();
+}
+function renderFinds(){
+  if(!finds.length){ $('finds').innerHTML='<div class="empty">No findings raised yet. Raise a detected weakness above to send it to the report.</div>'; return; }
+  let h='<table class="tbl"><thead><tr><th>Checkpoint</th><th>Finding</th><th>Severity</th><th></th></tr></thead><tbody>';
+  finds.forEach((f,i)=>{ h+='<tr><td>'+esc(f.loc)+'</td><td>'+esc(f.item)+'</td><td><span class="pill weak">Weak</span></td><td><button class="btn ghost sm" data-fdel="'+i+'">Remove</button></td></tr>'; });
+  $('finds').innerHTML=h+'</tbody></table>';
+  $('finds').querySelectorAll('[data-fdel]').forEach(b=>b.addEventListener('click',()=>{ finds.splice(+b.dataset.fdel,1); store.set(FKEY,finds); renderFinds(); }));
+}
+$('clear-finds').onclick=()=>{ if(confirm('Clear all raised findings?')){ finds=[]; store.set(FKEY,finds); renderFinds(); } };
+
+/* ---------- tabs ---------- */
+const tabs=document.querySelectorAll('.tab');
+tabs.forEach(t=>t.addEventListener('click',()=>{
+  tabs.forEach(x=>x.setAttribute('aria-selected',x===t?'true':'false'));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active',p.id===t.dataset.tab));
+  if(t.dataset.tab==='analysis') renderAnalysis();
+}));
+
+renderStations(); renderPasses(); renderFinds();
+</script>
+</body>
+</html>

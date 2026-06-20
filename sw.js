@@ -1,5 +1,5 @@
 /* Rampart Field Kit service worker. Cache-first so the kit runs with no signal. */
-const CACHE = 'rampart-v15';
+const CACHE = 'rampart-v26';
 const ASSETS = [
   './',
   'index.html',
@@ -22,8 +22,15 @@ const ASSETS = [
   'remit.html',
   'debrief.html',
   'lexicon.html',
+  'preflight.html',
+  'acoustic.html',
+  'patrol.html',
+  'sightline.html',
+  'cache.html',
   'gate.js',
+  'core.js',
   'kit.js',
+  'media.js',
   'manifest.webmanifest',
   'icon-192.png',
   'icon-512.png'

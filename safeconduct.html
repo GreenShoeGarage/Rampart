@@ -50,6 +50,7 @@
 <meta name="theme-color" content="#15191c">
 <link rel="apple-touch-icon" href="icon-192.png">
 <script src="gate.js"></script>
+<script src="core.js"></script>
 <script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
 </head>
 <body>
@@ -91,6 +92,7 @@
 
   <!-- AUTHORIZATION -->
   <section class="panel active" id="auth">
+    <div id="remit-banner"></div>
     <div id="window-warn"></div>
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
@@ -2500,12 +2502,6 @@ var qrcode = function() {
 
 </script>
 <script>
-const store = {
-  get(k,d){ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):d; }catch(e){ return d; } },
-  set(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){} }
-};
-const $ = id => document.getElementById(id);
-function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 
 /* ---------- tabs ---------- */
 const tabs=document.querySelectorAll('.tab');
@@ -2757,6 +2753,23 @@ function ciStart(){
 $('ci-start').onclick=ciStart;
 $('ci-ok').onclick=ciStart;
 $('ci-stop').onclick=()=>{ clearInterval(ciTimer); ciTimer=null; $('duress-banner').innerHTML=''; $('ci-count').value='Not running'; $('ci-start').style.display='inline-block'; $('ci-ok').style.display='none'; $('ci-stop').style.display='none'; };
+
+/* ---------- scope handoff from Remit ---------- */
+function renderRemitBanner(){
+  const pf = store.get('rampart.safeconduct.prefill', null);
+  const el = $('remit-banner');
+  if(!pf || (!pf.inscope && !pf.roe)){ el.innerHTML=''; return; }
+  el.innerHTML = '<div class="card" style="border-color:var(--olive);"><div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;"><div style="flex:1;min-width:200px;"><strong style="color:var(--cream);">Scope received from Remit</strong><div style="color:var(--mute);font-size:14px;">Apply it to the in scope and rules of engagement fields. Existing text is kept.</div></div><button class="btn sm" id="remit-apply">Apply</button> <button class="btn ghost sm" id="remit-dismiss">Dismiss</button></div></div>';
+  $('remit-apply').onclick=()=>{
+    if(pf.inscope && !$('in-scope').value.trim()) $('in-scope').value=pf.inscope;
+    if(pf.roe && !$('roe').value.trim()) $('roe').value=pf.roe;
+    FIELDS.forEach(f=>{ if($(f)) auth[f]=$(f).value; }); store.set(A_KEY,auth);
+    localStorage.removeItem('rampart.safeconduct.prefill'); renderRemitBanner();
+    alert('Applied to the letter. Review and save.');
+  };
+  $('remit-dismiss').onclick=()=>{ localStorage.removeItem('rampart.safeconduct.prefill'); renderRemitBanner(); };
+}
+renderRemitBanner();
 </script>
 </body>
 </html>

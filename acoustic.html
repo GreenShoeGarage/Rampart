@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<!-- ACOUSTIC (Field Instrument 036, Mod 20) - Rampart Field Kit. License: GPL-3.0 -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ACOUSTIC - Rampart Field Kit</title>
+<meta name="description" content="Relative sound level meter for the acoustic assessment. Reads ambient level and frequency balance to judge masking noise and acoustic privacy. Runs offline.">
+<link rel="stylesheet" href="theme.css">
+<style>
+  .readout { text-align:center; padding:18px 0 6px; }
+  .readout .big { font-family:var(--display); font-weight:800; font-size:56px; line-height:1; color:var(--cream); }
+  .readout .unit { font-family:var(--mono); font-size:12px; letter-spacing:0.2em; text-transform:uppercase; color:var(--steel); margin-top:6px; }
+  .meter-bar { height:14px; border-radius:7px; background:var(--plate); border:1px solid var(--line-2); overflow:hidden; margin:10px 0 4px; }
+  .meter-fill { height:100%; width:0%; background:linear-gradient(90deg,var(--olive),var(--amber) 65%,var(--crimson)); transition:width 0.06s linear; }
+  .statgrid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-top:14px; }
+  .stat { background:var(--plate); border:1px solid var(--line); border-radius:var(--rad); padding:10px 12px; text-align:center; }
+  .stat .l { font-family:var(--mono); font-size:9.5px; letter-spacing:0.16em; text-transform:uppercase; color:var(--steel); }
+  .stat .v { font-family:var(--display); font-weight:700; font-size:20px; color:var(--cream); margin-top:3px; }
+  .bands { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-top:12px; }
+  .band { background:var(--plate); border:1px solid var(--line); border-radius:var(--rad); padding:8px 10px; }
+  .band .l { font-family:var(--mono); font-size:9px; letter-spacing:0.14em; text-transform:uppercase; color:var(--steel); }
+  .band .track { height:8px; border-radius:4px; background:var(--ink); border:1px solid var(--line); overflow:hidden; margin-top:5px; }
+  .band .fill { height:100%; width:0%; background:var(--steel); }
+  .verdict { text-align:center; font-family:var(--display); font-weight:700; letter-spacing:0.05em; text-transform:uppercase; font-size:15px; margin-top:14px; padding:9px; border-radius:3px; }
+  .verdict .sub { display:block; font-family:var(--sans); font-weight:400; text-transform:none; letter-spacing:0; font-size:12.5px; margin-top:4px; opacity:0.85; }
+  .verdict.even { color:var(--olive); border:1px solid var(--olive); background:rgba(132,149,95,0.10); }
+  .verdict.some { color:var(--amber); border:1px solid var(--amber); background:rgba(199,158,80,0.10); }
+  .verdict.uneven { color:var(--crimson); border:1px solid var(--crimson); background:rgba(187,69,58,0.12); }
+  .reflist { color:var(--mute); font-size:14.5px; line-height:1.8; }
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#15191c">
+<link rel="apple-touch-icon" href="icon-192.png">
+<script src="gate.js"></script>
+<script src="core.js"></script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</head>
+<body>
+<div class="band"><span>Authorized assessment use only</span></div>
+
+<header class="masthead">
+  <div class="wrap">
+    <div class="crumbs"><a href="index.html">Rampart</a><span class="sep">/</span><span>Mod 20</span><span class="sep">/</span><span>Acoustic</span></div>
+    <div class="kit-title"><span class="name">Acoustic</span><span class="no">036 · 20</span></div>
+    <div class="kit-sub">Sound Meter</div>
+    <p class="kit-lede">Read the sound floor of a space. Acoustic reports a relative level and the balance of low, mid, and high energy, so you can judge the two things that matter on a survey: whether ambient noise is loud enough to mask a forced entry or footsteps, and whether a room is quiet enough that conversations carry past its walls. It feeds the acoustic line of the Sweep assessment.</p>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" aria-selected="true"  data-tab="meter">Meter</button>
+    <button class="tab" role="tab" aria-selected="false" data-tab="readings">Readings</button>
+    <button class="tab" role="tab" aria-selected="false" data-tab="reference">Reference</button>
+  </div>
+
+  <!-- METER -->
+  <section class="panel active" id="meter">
+    <div class="card">
+      <div class="readout">
+        <div class="big" id="level">--</div>
+        <div class="unit" id="unit">relative level, 0 to 100</div>
+      </div>
+      <div class="meter-bar"><div class="meter-fill" id="bar"></div></div>
+      <div class="statgrid">
+        <div class="stat"><div class="l">Quietest</div><div class="v" id="s-min">--</div></div>
+        <div class="stat"><div class="l">Average</div><div class="v" id="s-avg">--</div></div>
+        <div class="stat"><div class="l">Peak</div><div class="v" id="s-max">--</div></div>
+      </div>
+      <div class="bands">
+        <div class="band"><div class="l">Low / hum</div><div class="track"><div class="fill" id="b-low"></div></div></div>
+        <div class="band"><div class="l">Mid / voice</div><div class="track"><div class="fill" id="b-mid"></div></div></div>
+        <div class="band"><div class="l">High / hiss</div><div class="track"><div class="fill" id="b-high"></div></div></div>
+      </div>
+      <div class="verdict" id="verdict" style="display:none;"></div>
+      <div class="statline" id="status" style="margin-top:14px;text-align:center;"></div>
+    </div>
+    <div class="card">
+      <div class="row-actions"><button class="btn" id="start">Start meter</button></div>
+      <h3 style="margin-top:18px;">Log this spot</h3>
+      <div class="two-col">
+        <label class="fld"><span>Location</span><input id="m-loc" placeholder="e.g. Server room corridor"></label>
+        <label class="fld"><span>Note</span><input id="m-note" placeholder="e.g. HVAC plant running"></label>
+      </div>
+      <div class="row-actions"><button class="btn" id="mark" disabled>Log reading</button></div>
+    </div>
+  </section>
+
+  <!-- READINGS -->
+  <section class="panel" id="readings">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+        <h3 style="margin:0;">Logged spots</h3>
+        <div class="row-actions" style="margin:0;"><button class="btn ghost sm" id="export">Export JSON</button><button class="btn ghost sm" id="clear">Clear</button></div>
+      </div>
+      <div id="read-body" style="margin-top:12px;"></div>
+    </div>
+  </section>
+
+  <!-- REFERENCE -->
+  <section class="panel" id="reference">
+    <div class="card">
+      <h3>Reading the meter</h3>
+      <div class="reflist">
+        The level is a relative index, not calibrated decibels. Phone microphones vary and apply their own gain, so use Acoustic to compare spots and to judge whether a space is quiet or noisy, not to certify an absolute sound level.<br>
+        Automatic gain and noise suppression are turned off for the measurement, so the reading tracks real changes in the room rather than a normalized one. Hold the phone still and away from your hand so handling noise does not color the reading.<br>
+        The band bars show where the energy sits. A strong low band usually means plant or HVAC, a strong mid band means voices or traffic, and a strong high band means hiss, fans, or electronics.
+      </div>
+    </div>
+    <div class="card">
+      <h3>What the level tells you</h3>
+      <div class="reflist">
+        Masking works against detection. A loud, steady sound floor covers the noise of a forced door, a dropped tool, or footsteps, so a noisy approach is easier to defeat unheard. Note loud zones near sensitive entries as a weakness.<br>
+        Quiet works against privacy. In a quiet room, normal speech carries through walls, doors, and vents, so a quiet corridor outside a meeting room is an eavesdropping exposure. Note where conversations could be overheard.<br>
+        Audibility matters for response. An audible alarm or a shouted challenge has to beat the local sound floor. Where ambient noise is high, the alarm or voice may not carry.<br>
+        Record the weak spots as findings in Sweep and capture the setting in Exhibit.
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="wrap foot">
+  <span><a href="index.html" style="color:var(--mute);">&larr; Back to kit</a></span>
+  <span>Acoustic · Mod 20</span>
+</footer>
+
+<script>
+const KEY='rampart.acoustic.log';
+let reads = store.get(KEY, []);
+
+let stream=null, audioCtx=null, analyser=null, raf=null, running=false;
+let timeBuf=null, freqBuf=null;
+let acc={ sum:0, n:0, min:100, max:0 };
+let lastIdx=0, lastDb=-100, lastBands={low:0,mid:0,high:0};
+
+function bandAverage(freq, sampleRate, fftSize, fromHz, toHz){
+  const binHz = sampleRate / fftSize;
+  const a = Math.max(0, Math.floor(fromHz/binHz));
+  const b = Math.min(freq.length-1, Math.ceil(toHz/binHz));
+  let sum=0, n=0;
+  for(let i=a; i<=b; i++){ sum+=freq[i]; n++; }
+  return n ? (sum/n) : 0;
+}
+function levelFromDb(db){ return Math.max(0, Math.min(100, Math.round((db+60)/60*100))); }
+
+function loop(){
+  if(!running) return;
+  analyser.getByteTimeDomainData(timeBuf);
+  let sumSq=0;
+  for(let i=0;i<timeBuf.length;i++){ const v=(timeBuf[i]-128)/128; sumSq+=v*v; }
+  const rms=Math.sqrt(sumSq/timeBuf.length);
+  const db = rms>0 ? 20*Math.log10(rms) : -100;
+  const idx = levelFromDb(db);
+  lastIdx=idx; lastDb=db;
+
+  analyser.getByteFrequencyData(freqBuf);
+  const sr=audioCtx.sampleRate, fft=analyser.fftSize;
+  const low=Math.round(bandAverage(freqBuf,sr,fft,20,250)/255*100);
+  const mid=Math.round(bandAverage(freqBuf,sr,fft,250,2000)/255*100);
+  const high=Math.round(bandAverage(freqBuf,sr,fft,2000,6000)/255*100);
+  lastBands={low:low,mid:mid,high:high};
+
+  acc.sum+=idx; acc.n++; if(idx<acc.min) acc.min=idx; if(idx>acc.max) acc.max=idx;
+  const avg=Math.round(acc.sum/acc.n);
+
+  $('level').textContent=idx;
+  $('unit').textContent=Math.round(db)+' dBFS, uncalibrated';
+  $('bar').style.width=idx+'%';
+  $('s-min').textContent=acc.min;
+  $('s-avg').textContent=avg;
+  $('s-max').textContent=acc.max;
+  $('b-low').style.width=low+'%';
+  $('b-mid').style.width=mid+'%';
+  $('b-high').style.width=high+'%';
+
+  const v=$('verdict'); v.style.display='block';
+  if(avg<35){ v.className='verdict even'; v.innerHTML='Quiet floor<span class="sub">Intrusion sounds carry. Watch acoustic privacy, speech may be overheard.</span>'; }
+  else if(avg<60){ v.className='verdict some'; v.innerHTML='Moderate ambient noise<span class="sub">Some masking of quiet sounds. Conversations less likely to carry.</span>'; }
+  else { v.className='verdict uneven'; v.innerHTML='Loud floor<span class="sub">Ambient noise can mask a forced entry or footsteps. Check alarm audibility.</span>'; }
+
+  raf=requestAnimationFrame(loop);
+}
+
+$('start').onclick=async()=>{
+  if(running){
+    running=false; if(raf) cancelAnimationFrame(raf); raf=null;
+    if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; }
+    if(audioCtx){ try{ audioCtx.close(); }catch(e){} audioCtx=null; }
+    $('start').textContent='Start meter'; $('mark').disabled=true; $('status').textContent='Stopped.';
+    return;
+  }
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({ audio:{ echoCancellation:false, noiseSuppression:false, autoGainControl:false } });
+    audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+    if(audioCtx.state==='suspended'){ try{ await audioCtx.resume(); }catch(e){} }
+    const src=audioCtx.createMediaStreamSource(stream);
+    analyser=audioCtx.createAnalyser(); analyser.fftSize=2048; analyser.smoothingTimeConstant=0.6;
+    src.connect(analyser);
+    timeBuf=new Uint8Array(analyser.fftSize);
+    freqBuf=new Uint8Array(analyser.frequencyBinCount);
+    acc={ sum:0, n:0, min:100, max:0 };
+    running=true; loop();
+    $('start').textContent='Stop meter'; $('mark').disabled=false; $('status').textContent='Live. Hold still in the space to assess.';
+  }catch(e){ $('status').textContent='Microphone unavailable or permission denied.'; }
+};
+
+$('mark').onclick=()=>{
+  if(!running) return;
+  const avg=acc.n?Math.round(acc.sum/acc.n):lastIdx;
+  reads.push({ time:new Date().toISOString(), loc:$('m-loc').value.trim(), note:$('m-note').value.trim(),
+               level:lastIdx, dbfs:Math.round(lastDb), avg:avg, min:acc.min, peak:acc.max,
+               bands:{low:lastBands.low,mid:lastBands.mid,high:lastBands.high} });
+  store.set(KEY, reads);
+  $('m-loc').value=''; $('m-note').value='';
+  $('status').textContent='Logged reading at level '+lastIdx+'.';
+  renderReads();
+};
+
+function renderReads(){
+  if(!reads.length){ $('read-body').innerHTML='<div class="empty">No readings logged yet.</div>'; return; }
+  let h='<table class="tbl"><thead><tr><th>Location</th><th class="mono">Level</th><th class="mono">Avg</th><th class="mono">Peak</th><th class="mono">L/M/H</th><th>Note</th><th></th></tr></thead><tbody>';
+  reads.slice().reverse().forEach((r,ri)=>{
+    const i=reads.length-1-ri;
+    const b=r.bands||{low:0,mid:0,high:0};
+    h+='<tr><td>'+esc(r.loc||'-')+'</td><td class="mono">'+esc(r.level)+'</td><td class="mono">'+esc(r.avg)+'</td><td class="mono">'+esc(r.peak)+'</td><td class="mono">'+esc(b.low+'/'+b.mid+'/'+b.high)+'</td><td style="color:var(--mute);">'+esc(r.note||'')+'</td><td><button class="btn ghost sm" data-del="'+i+'">Remove</button></td></tr>';
+  });
+  $('read-body').innerHTML=h+'</tbody></table>';
+  $('read-body').querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click',()=>{ reads.splice(+b.dataset.del,1); store.set(KEY,reads); renderReads(); }));
+}
+$('clear').onclick=()=>{ if(confirm('Clear all logged readings?')){ reads=[]; store.set(KEY,reads); renderReads(); } };
+$('export').onclick=()=>{ const b=new Blob([JSON.stringify(reads,null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='acoustic-readings.json'; a.click(); URL.revokeObjectURL(a.href); };
+
+/* ---------- tabs ---------- */
+const tabs=document.querySelectorAll('.tab');
+tabs.forEach(t=>t.addEventListener('click',()=>{
+  tabs.forEach(x=>x.setAttribute('aria-selected',x===t?'true':'false'));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active',p.id===t.dataset.tab));
+}));
+
+renderReads();
+</script>
+</body>
+</html>

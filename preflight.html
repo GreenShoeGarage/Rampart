@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<!-- PREFLIGHT (Field Instrument 036, Mod 19) - Rampart Field Kit. License: GPL-3.0 -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PREFLIGHT - Rampart Field Kit</title>
+<meta name="description" content="Device capability self-check. Tests the camera, sensors, crypto, and storage this phone offers and reports which kit modules will run on it.">
+<link rel="stylesheet" href="theme.css">
+<style>
+  .grp { font-family:var(--mono); font-size:10.5px; letter-spacing:0.18em; text-transform:uppercase; color:var(--rust); margin:18px 0 8px; }
+  .chk { display:flex; align-items:center; gap:12px; padding:10px 0; border-bottom:1px solid var(--line); flex-wrap:wrap; }
+  .chk:last-child { border-bottom:0; }
+  .chk .body { flex:1; min-width:180px; }
+  .chk .lab { color:var(--cream); font-size:15px; }
+  .chk .why { color:var(--faint); font-size:12.5px; margin-top:2px; }
+  .chk .det { font-family:var(--mono); font-size:10.5px; color:var(--steel); margin-top:3px; }
+  .pill.sm2 { font-size:10px; padding:2px 7px; }
+  .envgrid { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin-top:6px; }
+  .env { background:var(--plate); border:1px solid var(--line); border-radius:var(--rad); padding:10px 12px; }
+  .env .l { font-family:var(--mono); font-size:9.5px; letter-spacing:0.14em; text-transform:uppercase; color:var(--steel); }
+  .env .v { color:var(--cream); font-size:14px; margin-top:3px; word-break:break-word; }
+  .summary-line { font-family:var(--display); font-weight:700; letter-spacing:0.04em; text-transform:uppercase; font-size:15px; text-align:center; padding:10px; border-radius:3px; margin-bottom:14px; }
+  .summary-line.good { color:var(--olive); border:1px solid var(--olive); background:rgba(132,149,95,0.10); }
+  .summary-line.warn { color:var(--amber); border:1px solid var(--amber); background:rgba(199,158,80,0.10); }
+  .summary-line.bad { color:var(--crimson); border:1px solid var(--crimson); background:rgba(187,69,58,0.12); }
+  .modrow td:first-child { white-space:nowrap; }
+  .reflist { color:var(--mute); font-size:14.5px; line-height:1.8; }
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#15191c">
+<link rel="apple-touch-icon" href="icon-192.png">
+<script src="gate.js"></script>
+<script src="core.js"></script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</head>
+<body>
+<div class="band"><span>Authorized assessment use only</span></div>
+
+<header class="masthead">
+  <div class="wrap">
+    <div class="crumbs"><a href="index.html">Rampart</a><span class="sep">/</span><span>Mod 19</span><span class="sep">/</span><span>Preflight</span></div>
+    <div class="kit-title"><span class="name">Preflight</span><span class="no">036 · 19</span></div>
+    <div class="kit-sub">Device Check</div>
+    <p class="kit-lede">Run this on the phone you will carry before you walk in. Preflight tests the camera, sensors, crypto, and storage the device actually offers, then tells you which kit modules will run on it, so the magnetometer Flux needs or the secure context Exhibit needs is a known quantity, not an on-site surprise.</p>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" aria-selected="true"  data-tab="device">Device</button>
+    <button class="tab" role="tab" aria-selected="false" data-tab="modules">Modules</button>
+    <button class="tab" role="tab" aria-selected="false" data-tab="report">Report</button>
+  </div>
+
+  <!-- DEVICE -->
+  <section class="panel active" id="device">
+    <div class="card">
+      <h3 style="margin-top:0;">Environment</h3>
+      <div class="envgrid" id="envgrid"></div>
+    </div>
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+        <h3 style="margin:0;">Capabilities</h3>
+        <div class="row-actions" style="margin:0;"><button class="btn ghost sm" id="test-all">Run sensor tests</button></div>
+      </div>
+      <p style="color:var(--faint);font-size:13px;margin:6px 0 4px;">Presence checks run automatically. Camera, microphone, location, magnetometer, and motion need a tap to test, since they ask permission.</p>
+      <div id="caplist"></div>
+    </div>
+  </section>
+
+  <!-- MODULES -->
+  <section class="panel" id="modules">
+    <div class="card">
+      <div class="summary-line" id="mod-summary"></div>
+      <p style="color:var(--faint);font-size:13px;margin:0 0 8px;">Readiness reflects the checks so far. Run the sensor tests on the Device tab for a true reading of camera, location, and the motion sensors.</p>
+      <table class="tbl modrow"><thead><tr><th>Module</th><th>Status</th><th>Notes</th><th></th></tr></thead><tbody id="mod-body"></tbody></table>
+    </div>
+  </section>
+
+  <!-- REPORT -->
+  <section class="panel" id="report">
+    <div class="card">
+      <h3 style="margin-top:0;">Device profile</h3>
+      <p style="color:var(--mute);font-size:14px;">Save the profile to keep a record of what this device can do for the engagement, or export it to attach to the loadout notes in Quartermaster.</p>
+      <div class="row-actions"><button class="btn" id="save">Save profile</button><button class="btn ghost sm" id="export">Export JSON</button><button class="btn ghost sm" id="copy">Copy summary</button></div>
+      <div class="statline" id="save-stat" style="margin-top:10px;"></div>
+      <pre id="report-text" style="white-space:pre-wrap;font-family:var(--mono);font-size:12px;color:var(--mute);background:var(--plate);border:1px solid var(--line);border-radius:var(--rad);padding:12px;margin-top:12px;overflow-x:auto;"></pre>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0;">How to read this</h3>
+      <div class="reflist">
+        Ready means the device has what the module needs. Limited means it will run with a feature reduced, like Lumen without an ambient light sensor or Touchstone without NFC. Will not run means a required capability is missing on this device.<br>
+        Most sensor and camera access needs a secure context. If the secure context check fails, host the kit over HTTPS or install it as an app before you rely on it.<br>
+        Magnetometer support is the usual gap. Where the dedicated sensor is absent, Preflight falls back to the orientation sensor and marks Flux as limited.
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="wrap foot">
+  <span><a href="index.html" style="color:var(--mute);">&larr; Back to kit</a></span>
+  <span>Preflight · Mod 19</span>
+</footer>
+
+<script>
+const PKEY='rampart.preflight.profile';
+
+/* ---------- passive + active capability checks ---------- */
+function testLocalStorage(){ try{ localStorage.setItem('rampart.preflight.t','1'); localStorage.removeItem('rampart.preflight.t'); return 'ok'; }catch(e){ return 'no'; } }
+function magPassive(){ if('Magnetometer' in window) return 'ok'; if('DeviceOrientationEvent' in window) return 'maybe'; return 'no'; }
+
+async function testCamera(){ try{ const s=await navigator.mediaDevices.getUserMedia({video:true}); const t=s.getVideoTracks()[0]; const st=(t&&t.getSettings)?t.getSettings():{}; s.getTracks().forEach(x=>x.stop()); return {status:'ok', detail:(st.width&&st.height)?(st.width+'x'+st.height):'available'}; }catch(e){ return {status:'no', detail:e.name||'blocked'}; } }
+async function testMic(){ try{ const s=await navigator.mediaDevices.getUserMedia({audio:true}); s.getTracks().forEach(x=>x.stop()); return {status:'ok', detail:'available'}; }catch(e){ return {status:'no', detail:e.name||'blocked'}; } }
+function testGeo(){ return new Promise(res=>{ if(!navigator.geolocation) return res({status:'no',detail:'unavailable'}); navigator.geolocation.getCurrentPosition(p=>res({status:'ok',detail:'within '+Math.round(p.coords.accuracy)+'m'}), e=>res({status:'no',detail:e.message||'blocked'}), {timeout:9000,maximumAge:0}); }); }
+async function testMag(){
+  if('Magnetometer' in window){
+    try{
+      const m=new Magnetometer({frequency:10});
+      return await new Promise(res=>{
+        let done=false;
+        const finish=(o)=>{ if(done) return; done=true; try{ m.stop(); }catch(_){} res(o); };
+        m.addEventListener('reading',()=>finish({status:'ok',detail:Math.hypot(m.x,m.y,m.z).toFixed(1)+' uT'}));
+        m.addEventListener('error',e=>finish({status:'no',detail:(e.error&&e.error.name)||'error'}));
+        m.start();
+        setTimeout(()=>finish({status:'no',detail:'no reading'}),4000);
+      });
+    }catch(e){ return {status:'no',detail:e.name||'blocked'}; }
+  }
+  if('DeviceOrientationEvent' in window){
+    try{
+      if(typeof DeviceOrientationEvent.requestPermission==='function'){ const p=await DeviceOrientationEvent.requestPermission(); if(p!=='granted') return {status:'no',detail:'denied'}; }
+      return await new Promise(res=>{
+        let done=false;
+        const h=ev=>{ if(done) return; done=true; window.removeEventListener('deviceorientation',h); const head=(ev.webkitCompassHeading!=null?ev.webkitCompassHeading:ev.alpha); res({status:'maybe',detail:head!=null?('heading '+Math.round(head)+'°'):'orientation only'}); };
+        window.addEventListener('deviceorientation',h);
+        setTimeout(()=>{ if(!done){ done=true; window.removeEventListener('deviceorientation',h); res({status:'no',detail:'no events'}); } },4000);
+      });
+    }catch(e){ return {status:'no',detail:e.name||'error'}; }
+  }
+  return {status:'no',detail:'no sensor'};
+}
+async function testMotion(){
+  if(!('DeviceMotionEvent' in window)) return {status:'no',detail:'unavailable'};
+  try{
+    if(typeof DeviceMotionEvent.requestPermission==='function'){ const p=await DeviceMotionEvent.requestPermission(); if(p!=='granted') return {status:'no',detail:'denied'}; }
+    return await new Promise(res=>{
+      let done=false;
+      const h=ev=>{ if(done) return; const a=ev.accelerationIncludingGravity||ev.acceleration; if(!a) return; done=true; window.removeEventListener('devicemotion',h); res({status:'ok',detail:'sensing motion'}); };
+      window.addEventListener('devicemotion',h);
+      setTimeout(()=>{ if(!done){ done=true; window.removeEventListener('devicemotion',h); res({status:'no',detail:'no events'}); } },4000);
+    });
+  }catch(e){ return {status:'no',detail:e.name||'error'}; }
+}
+
+const CAPS = [
+  { id:'secure',       grp:'Platform',          label:'Secure context (HTTPS)',   why:'Required for camera, location, sensors, and crypto', passive:()=> window.isSecureContext ? 'ok':'no' },
+  { id:'sw',           grp:'Platform',          label:'Service worker / offline',  why:'Lets the kit run offline as an installed app',       passive:()=> ('serviceWorker' in navigator) ? 'ok':'no' },
+  { id:'localStorage', grp:'Storage',           label:'Local storage',             why:'Every module saves findings and notes here',         passive:testLocalStorage },
+  { id:'indexeddb',    grp:'Storage',           label:'IndexedDB (media store)',   why:'Holds photos and evidence without filling storage',  passive:()=> window.indexedDB ? 'ok':'no' },
+  { id:'crypto',       grp:'Integrity',         label:'Web Crypto (SHA-256, ECDSA)', why:'Hash chains in Exhibit and the signed letter in Safeconduct', passive:()=> (window.crypto && window.crypto.subtle) ? 'ok':'no' },
+  { id:'camera',       grp:'Camera and sensors', label:'Camera',                   why:'Exhibit, Gauge, Lumen, and Sweep photos',            passive:()=> (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) ? 'prompt':'no', active:testCamera },
+  { id:'microphone',   grp:'Camera and sensors', label:'Microphone',               why:'Picket sound trip',                                  passive:()=> (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) ? 'prompt':'no', active:testMic },
+  { id:'geolocation',  grp:'Camera and sensors', label:'Location',                 why:'Geotags evidence and anchors map links',             passive:()=> ('geolocation' in navigator) ? 'prompt':'no', active:testGeo },
+  { id:'magnetometer', grp:'Camera and sensors', label:'Magnetometer',             why:'Flux detects maglocks and ferrous metal',            passive:magPassive, active:testMag },
+  { id:'motion',       grp:'Camera and sensors', label:'Motion sensor',            why:'Picket motion and vibration trip',                   passive:()=> ('DeviceMotionEvent' in window) ? 'prompt':'no', active:testMotion },
+  { id:'ambient',      grp:'Camera and sensors', label:'Ambient light sensor',     why:'Lumen bonus reading, rare on phones',                passive:()=> ('AmbientLightSensor' in window) ? 'ok':'no' },
+  { id:'nfc',          grp:'Connectivity',      label:'NFC (Web NFC)',             why:'Touchstone reads tags on Android Chrome',            passive:()=> ('NDEFReader' in window) ? 'ok':'no' },
+  { id:'bluetooth',    grp:'Connectivity',      label:'Bluetooth',                 why:'Touchstone scans BLE beacons',                       passive:()=> ('bluetooth' in navigator) ? 'ok':'no' },
+  { id:'speech',       grp:'Convenience',       label:'Speech recognition',        why:'Sweep voice dictation',                              passive:()=> (window.SpeechRecognition||window.webkitSpeechRecognition) ? 'ok':'no' },
+  { id:'vibrate',      grp:'Convenience',       label:'Vibration',                 why:'Picket haptic alerts',                               passive:()=> ('vibrate' in navigator) ? 'ok':'no' },
+  { id:'wakelock',     grp:'Convenience',       label:'Wake lock',                 why:'Keeps the screen on during a Picket watch',          passive:()=> ('wakeLock' in navigator) ? 'ok':'no' },
+  { id:'clipboard',    grp:'Convenience',       label:'Clipboard',                 why:'Copy report text from Docket',                       passive:()=> (navigator.clipboard && navigator.clipboard.writeText) ? 'ok':'no' }
+];
+
+const MODREQ = [
+  { mod:'01', name:'Tumbler',       href:'tumbler.html',       needs:[['localStorage','req']] },
+  { mod:'02', name:'Credential',    href:'credential.html',    needs:[['localStorage','req']] },
+  { mod:'03', name:'Picket',        href:'picket.html',        needs:[['motion','req'],['microphone','opt'],['camera','opt'],['wakelock','opt'],['vibrate','opt']] },
+  { mod:'04', name:'Safeconduct',   href:'safeconduct.html',   needs:[['crypto','req'],['clipboard','opt']] },
+  { mod:'05', name:'Sweep',         href:'sweep.html',         needs:[['camera','opt'],['geolocation','opt'],['speech','opt']] },
+  { mod:'06', name:'Aether',        href:'aether.html',        needs:[['localStorage','req']] },
+  { mod:'07', name:'Docket',        href:'docket.html',        needs:[['indexeddb','opt'],['clipboard','opt']] },
+  { mod:'08', name:'Footprint',     href:'footprint.html',     needs:[['geolocation','opt']] },
+  { mod:'09', name:'Touchstone',    href:'touchstone.html',    needs:[['nfc','opt'],['bluetooth','opt']] },
+  { mod:'10', name:'Quartermaster', href:'quartermaster.html', needs:[['localStorage','req']] },
+  { mod:'11', name:'Primer',        href:'primer.html',        needs:[['localStorage','req']] },
+  { mod:'12', name:'Exhibit',       href:'exhibit.html',       needs:[['camera','req'],['crypto','req'],['geolocation','opt'],['indexeddb','opt']] },
+  { mod:'13', name:'Flux',          href:'flux.html',          needs:[['magnetometer','req']] },
+  { mod:'14', name:'Lumen',         href:'lumen.html',         needs:[['camera','req'],['ambient','opt']] },
+  { mod:'15', name:'Gauge',         href:'gauge.html',         needs:[['camera','req'],['indexeddb','opt']] },
+  { mod:'16', name:'Remit',         href:'remit.html',         needs:[['localStorage','req']] },
+  { mod:'17', name:'Debrief',       href:'debrief.html',       needs:[['localStorage','req']] },
+  { mod:'18', name:'Lexicon',       href:'lexicon.html',       needs:[] }
+];
+
+const caps = {}; // id -> { status, detail }
+const PILL = { ok:'pill strong sm2', maybe:'pill weak sm2', no:'pill crit sm2', prompt:'pill info sm2' };
+const CAPLBL = { ok:'Ready', maybe:'Partial', no:'Missing', prompt:'Tap to test' };
+const MODLBL = { ok:'Ready', maybe:'Limited', no:'Will not run' };
+const MODPILL = { ok:'pill strong', maybe:'pill weak', no:'pill crit' };
+
+function avail(st){ return st==='ok' || st==='prompt'; }
+
+/* pure readiness evaluation: needs + capability statuses -> module status + notes */
+function evalModule(needs, c){
+  let worst='ok'; const notes=[];
+  needs.forEach(function(n){
+    const cap=n[0], level=n[1], st=(c[cap]&&c[cap].status)||'no', lab=capLabel(cap);
+    if(level==='req'){
+      if(st==='no'){ worst='no'; notes.push('needs '+lab); }
+      else if(st==='maybe'){ if(worst!=='no') worst='maybe'; notes.push(lab+' limited'); }
+    } else {
+      if(st==='no'){ if(worst==='ok') worst='maybe'; notes.push('no '+lab); }
+      else if(st==='maybe'){ if(worst==='ok') worst='maybe'; notes.push(lab+' limited'); }
+    }
+  });
+  return { status:worst, notes:notes };
+}
+function capLabel(id){ const c=CAPS.find(x=>x.id===id); return c?c.label.replace(/ \(.*\)/,'').toLowerCase():id; }
+
+/* ---------- render ---------- */
+function renderEnv(){
+  const sc=window.isSecureContext;
+  const rows=[
+    ['Secure context', sc?'Yes (HTTPS)':'No'],
+    ['Connection', navigator.onLine?'Online':'Offline'],
+    ['Platform', (navigator.userAgentData&&navigator.userAgentData.platform)||navigator.platform||'unknown'],
+    ['Touch points', (navigator.maxTouchPoints||0)+'']
+  ];
+  $('envgrid').innerHTML = rows.map(r=>'<div class="env"><div class="l">'+esc(r[0])+'</div><div class="v">'+esc(r[1])+'</div></div>').join('');
+  if(navigator.storage && navigator.storage.estimate){
+    navigator.storage.estimate().then(function(e){
+      const mb=v=>v?Math.round(v/1048576)+' MB':'n/a';
+      $('envgrid').insertAdjacentHTML('beforeend','<div class="env"><div class="l">Storage quota</div><div class="v">'+mb(e.quota)+'</div></div><div class="env"><div class="l">Storage used</div><div class="v">'+mb(e.usage)+'</div></div>');
+    }).catch(function(){});
+  }
+}
+function renderCaps(){
+  let h=''; let lastGrp='';
+  CAPS.forEach(function(c){
+    if(c.grp!==lastGrp){ h+='<div class="grp">'+esc(c.grp)+'</div>'; lastGrp=c.grp; }
+    const r=caps[c.id]||{status:'no'};
+    const det=r.detail?'<div class="det">'+esc(r.detail)+'</div>':'';
+    const btn=c.active?'<button class="btn ghost sm" data-test="'+c.id+'">Test</button>':'';
+    h+='<div class="chk"><div class="body"><div class="lab">'+esc(c.label)+'</div><div class="why">'+esc(c.why)+'</div>'+det+'</div><span class="'+PILL[r.status]+'">'+CAPLBL[r.status]+'</span>'+btn+'</div>';
+  });
+  $('caplist').innerHTML=h;
+  $('caplist').querySelectorAll('[data-test]').forEach(function(b){ b.addEventListener('click',function(){ runActive(b.dataset.test, b); }); });
+}
+function renderModules(){
+  let crit=0, warn=0, ok=0;
+  const rows=MODREQ.map(function(m){
+    const r=evalModule(m.needs, caps);
+    if(r.status==='no') crit++; else if(r.status==='maybe') warn++; else ok++;
+    const note=r.notes.length?esc(r.notes.join(', ')):'All needs met';
+    return '<tr><td>'+m.mod+' '+esc(m.name)+'</td><td><span class="'+MODPILL[r.status]+'">'+MODLBL[r.status]+'</span></td><td style="color:var(--mute);font-size:13px;">'+note+'</td><td><a href="'+m.href+'" style="color:var(--steel);">Open</a></td></tr>';
+  });
+  $('mod-body').innerHTML=rows.join('');
+  const sum=$('mod-summary');
+  if(crit){ sum.className='summary-line bad'; sum.textContent=crit+' module'+(crit===1?'':'s')+' will not run on this device'; }
+  else if(warn){ sum.className='summary-line warn'; sum.textContent=ok+' ready, '+warn+' limited'; }
+  else { sum.className='summary-line good'; sum.textContent='All '+ok+' modules ready on this device'; }
+}
+function renderReport(){
+  const lines=['Rampart device profile', new Date().toISOString(), '', 'Secure context: '+(window.isSecureContext?'yes':'no'), '', 'Capabilities:'];
+  CAPS.forEach(function(c){ const r=caps[c.id]||{status:'no'}; lines.push('  '+CAPLBL[r.status].padEnd(11)+' '+c.label+(r.detail?'  ('+r.detail+')':'')); });
+  lines.push('', 'Module readiness:');
+  MODREQ.forEach(function(m){ const r=evalModule(m.needs,caps); lines.push('  '+MODLBL[r.status].padEnd(12)+' '+m.mod+' '+m.name+(r.notes.length?'  ['+r.notes.join(', ')+']':'')); });
+  $('report-text').textContent=lines.join('\n');
+}
+function renderAll(){ renderCaps(); renderModules(); renderReport(); }
+
+/* ---------- run checks ---------- */
+function runPassive(){
+  CAPS.forEach(function(c){ try{ caps[c.id]={ status:c.passive(), detail:'' }; }catch(e){ caps[c.id]={ status:'no', detail:'error' }; } });
+  renderEnv(); renderAll();
+}
+async function runActive(id, btn){
+  const c=CAPS.find(x=>x.id===id); if(!c||!c.active) return;
+  if(btn){ btn.disabled=true; btn.textContent='Testing'; }
+  let r; try{ r=await c.active(); }catch(e){ r={status:'no',detail:e.name||'error'}; }
+  caps[id]={ status:r.status, detail:r.detail||'' };
+  renderAll();
+}
+$('test-all').onclick=async()=>{
+  $('test-all').disabled=true; $('test-all').textContent='Testing';
+  for(const c of CAPS){ if(c.active){ await runActive(c.id, null); } }
+  $('test-all').disabled=false; $('test-all').textContent='Run sensor tests';
+};
+
+/* ---------- report actions ---------- */
+$('save').onclick=()=>{
+  const prof={ time:new Date().toISOString(), secure:!!window.isSecureContext, ua:(navigator.userAgentData&&navigator.userAgentData.platform)||navigator.platform||'', caps:{} };
+  CAPS.forEach(function(c){ prof.caps[c.id]=(caps[c.id]||{}).status||'no'; });
+  const okSave=store.set(PKEY, prof);
+  $('save-stat').textContent = okSave ? 'Profile saved for this engagement.' : 'Could not save (storage full).';
+  setTimeout(()=>$('save-stat').textContent='',2600);
+};
+$('export').onclick=()=>{
+  const prof={ time:new Date().toISOString(), secure:!!window.isSecureContext, caps:{} };
+  CAPS.forEach(function(c){ prof.caps[c.id]=caps[c.id]||{status:'no'}; });
+  prof.modules=MODREQ.map(m=>({ mod:m.mod, name:m.name, readiness:evalModule(m.needs,caps) }));
+  const b=new Blob([JSON.stringify(prof,null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='preflight-profile.json'; a.click(); URL.revokeObjectURL(a.href);
+};
+$('copy').onclick=async()=>{ try{ await navigator.clipboard.writeText($('report-text').textContent); $('save-stat').textContent='Summary copied.'; setTimeout(()=>$('save-stat').textContent='',2000); }catch(e){ $('save-stat').textContent='Copy failed.'; } };
+
+/* ---------- tabs ---------- */
+const tabs=document.querySelectorAll('.tab');
+tabs.forEach(t=>t.addEventListener('click',()=>{
+  tabs.forEach(x=>x.setAttribute('aria-selected',x===t?'true':'false'));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active',p.id===t.dataset.tab));
+}));
+
+runPassive();
+</script>
+</body>
+</html>

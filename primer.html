@@ -33,6 +33,7 @@
 <meta name="theme-color" content="#15191c">
 <link rel="apple-touch-icon" href="icon-192.png">
 <script src="gate.js"></script>
+<script src="core.js"></script>
 <script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
 </head>
 <body>
@@ -59,7 +60,6 @@
 </footer>
 
 <script>
-function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 
 const PHASES=[
   {
@@ -69,7 +69,7 @@ const PHASES=[
     fix:['Reduce the public footprint: generalize job ads and scrub document metadata','Set a social media and photography policy for staff','Train reception and staff to verify vendors','Review the public picture periodically as part of the attack surface']
   },
   {
-    name:'Approach & perimeter', module:'Assess with Sweep',
+    name:'Approach & perimeter', module:'Assess with Sweep, Sightline, and Patrol',
     vector:'The attacker studies the outer ring: how the site is fenced, where people and vehicles enter, where cameras cover and where they do not, and how well the grounds are lit. Weak perimeters and dark, unwatched approaches invite a closer look.',
     indicators:['Low barriers, climb aids near the line, gaps or breaches','Camera blind spots and dead zones','Dim or patchy lighting and dark approaches','Unmonitored or open gates'],
     fix:['Apply layered defense and CPTED: raise and clear the perimeter','Close camera blind spots and light the approaches evenly','Control vehicle and pedestrian gates','Let natural surveillance and territorial reinforcement work for you']
@@ -117,7 +117,7 @@ const PHASES=[
 
 const PHASE_LINKS = [
   [{label:'Footprint', href:'footprint.html', key:'rampart.footprint.findings'}],
-  [{label:'Sweep', href:'sweep.html', key:'rampart.sweep.findings'}],
+  [{label:'Sweep', href:'sweep.html', key:'rampart.sweep.findings'},{label:'Sightline', href:'sightline.html', key:'rampart.sightline.findings'},{label:'Patrol', href:'patrol.html', key:'rampart.patrol.findings'}],
   [{label:'Sweep', href:'sweep.html', key:'rampart.sweep.findings'},{label:'Tumbler', href:'tumbler.html', key:'rampart.tumbler.findings'}],
   [{label:'Credential', href:'credential.html', key:'rampart.credential.findings'},{label:'Aether', href:'aether.html', key:'rampart.aether.findings'}],
   [{label:'Aether', href:'aether.html', key:'rampart.aether.findings'}],

@@ -37,6 +37,8 @@
 <meta name="theme-color" content="#15191c">
 <link rel="apple-touch-icon" href="icon-192.png">
 <script src="gate.js"></script>
+<script src="core.js"></script>
+<script src="media.js"></script>
 <script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
 </head>
 <body>
@@ -126,14 +128,8 @@
 </footer>
 
 <script>
-const store = {
-  get(k,d){ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):d; }catch(e){ return d; } },
-  set(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){} }
-};
 const KEY='rampart.picket.log';
 let log = store.get(KEY, []);
-const $ = id => document.getElementById(id);
-function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 
 let state = 'idle';            // idle | arming | armed | tripped
 let stream = null, audioStream = null;
@@ -152,11 +148,20 @@ function renderLog(){
   const el = $('log');
   if(!log.length){ el.innerHTML='<div class="empty">No trips recorded.</div>'; return; }
   let h='<table class="tbl"><thead><tr><th class="mono">Time</th><th>Sensor</th><th class="mono">Level</th><th>Snapshot</th></tr></thead><tbody>';
-  log.slice().reverse().forEach(e=>{
+  log.slice().reverse().forEach((e,ri)=>{
+    const i=log.length-1-ri; const hasImg=e.img||e.imgId;
     h+='<tr><td class="mono">'+esc(e.t)+'</td><td>'+esc(e.s)+'</td><td class="mono">'+esc(e.l)+'</td>'+
-       '<td>'+(e.img?'<img src="'+e.img+'" style="max-width:120px;border:1px solid var(--line);border-radius:2px;">':'<span style="color:var(--faint);">-</span>')+'</td></tr>';
+       '<td>'+(hasImg?'<img data-idx="'+i+'" style="max-width:120px;border:1px solid var(--line);border-radius:2px;">':'<span style="color:var(--faint);">-</span>')+'</td></tr>';
   });
   el.innerHTML=h+'</tbody></table>';
+  hydratePicket();
+}
+async function imgOf(e){ if(e.img) return e.img; if(e.imgId && window.RampartMedia) return (await window.RampartMedia.get(e.imgId))||''; return ''; }
+async function hydratePicket(){ const imgs=$('log').querySelectorAll('img[data-idx]'); for(const im of imgs){ const url=await imgOf(log[+im.dataset.idx]); if(url) im.src=url; } }
+async function storeSnap(e, dataURL){
+  const M=window.RampartMedia;
+  if(M && M.available()){ try{ e.imgId=await M.put(dataURL); }catch(err){ e.img=dataURL; } } else { e.img=dataURL; }
+  store.set(KEY,log); renderLog();
 }
 function captureSnapshot(){
   if(!$('s-snap').checked || !video || video.readyState<2) return null;
@@ -169,9 +174,14 @@ function captureSnapshot(){
     return snapCanvas.toDataURL('image/jpeg',0.5);
   }catch(e){ return null; }
 }
-$('export').onclick=()=>{ const b=new Blob([JSON.stringify(log,null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='picket-log.json'; a.click(); URL.revokeObjectURL(a.href); };
-$('clear').onclick=()=>{ if(confirm('Clear the trip log?')){ log=[]; store.set(KEY,log); renderLog(); } };
-renderLog();
+$('export').onclick=async()=>{ const out=[]; for(const e of log){ const c=Object.assign({},e); delete c.imgId; const u=await imgOf(e); if(u) c.img=u; out.push(c); } const b=new Blob([JSON.stringify(out,null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='picket-log.json'; a.click(); URL.revokeObjectURL(a.href); };
+$('clear').onclick=async()=>{ if(confirm('Clear the trip log?')){ const ids=log.map(e=>e.imgId).filter(Boolean); log=[]; store.set(KEY,log); if(window.RampartMedia&&ids.length){ try{ await window.RampartMedia.del(ids); }catch(e){} } renderLog(); } };
+async function migrateLegacy(){
+  const M=window.RampartMedia;
+  if(M && M.available()){ let changed=false; for(const e of log){ if(e.img && !e.imgId){ try{ e.imgId=await M.put(e.img); delete e.img; changed=true; }catch(err){} } } if(changed) store.set(KEY,log); }
+  renderLog();
+}
+migrateLegacy();
 
 /* ---------- alarm ---------- */
 function beep(){
@@ -192,8 +202,10 @@ function flash(){ const f=$('flash'); f.classList.remove('go'); void f.offsetWid
 function trip(sensor, lvl){
   if(state!=='armed' || Date.now()<cooldownUntil) return;
   state='tripped'; cooldownUntil = Date.now()+3000;
-  const e = { t:new Date().toLocaleTimeString(), s:sensor, l:lvl, img: captureSnapshot() };
+  const e = { t:new Date().toLocaleTimeString(), s:sensor, l:lvl };
   log.push(e); store.set(KEY,log); renderLog();
+  const snap = captureSnapshot();
+  if(snap) storeSnap(e, snap);
   beep(); flash();
   $('arm').classList.add('tripped'); $('arm').textContent='Tripped';
   $('stat').textContent='Trip · '+sensor+' · re-arming';

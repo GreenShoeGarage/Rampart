@@ -84,28 +84,40 @@
   }
 
   /* ---- backup / restore ---- */
+  function MEDIA(){ return global.RampartMedia; }
+  function idsInData(dataObj){
+    var ids=[]; var M=MEDIA(); if(!M) return ids;
+    Object.keys(dataObj||{}).forEach(function(k){ M.idsIn(dataObj[k]).forEach(function(id){ if(ids.indexOf(id)<0) ids.push(id); }); });
+    return ids;
+  }
   function exportEngagement(){
-    return { kind:'rampart-engagement', name:activeName()||'Engagement', exported:now(), data:readWorking() };
+    var data=readWorking();
+    var base={ kind:'rampart-engagement', name:activeName()||'Engagement', exported:now(), data:data };
+    var M=MEDIA(); if(!M) return Promise.resolve(base);
+    return M.dump(idsInData(data)).then(function(media){ base.media=media; return base; });
   }
   function importEngagement(obj){
-    if(!obj || obj.kind!=='rampart-engagement') throw new Error('Not a Rampart engagement file');
+    if(!obj || obj.kind!=='rampart-engagement') return Promise.reject(new Error('Not a Rampart engagement file'));
     var m=ensureInit();
     if(m.active) saveSnap(m.active);
     loadWorking(obj.data||{});
     var id=uid();
     m.list.push({ id:id, name:(obj.name||'Imported')+' (restored)', created:now() });
     m.active=id; setMeta(m);
-    return id;
+    var M=MEDIA(); if(!M || !obj.media) return Promise.resolve(id);
+    return M.load(obj.media).then(function(){ return id; });
   }
   function exportAll(){
     var m=ensureInit();
     if(m.active) saveSnap(m.active);
-    var snaps={};
-    m.list.forEach(function(e){ snaps[e.id]=readSnap(e.id); });
-    return { kind:'rampart-kit', exported:now(), meta:m, snapshots:snaps };
+    var snaps={}; var ids=[];
+    m.list.forEach(function(e){ var s=readSnap(e.id); snaps[e.id]=s; idsInData(s).forEach(function(id){ if(ids.indexOf(id)<0) ids.push(id); }); });
+    var base={ kind:'rampart-kit', exported:now(), meta:m, snapshots:snaps };
+    var M=MEDIA(); if(!M) return Promise.resolve(base);
+    return M.dump(ids).then(function(media){ base.media=media; return base; });
   }
   function importAll(obj){
-    if(!obj || obj.kind!=='rampart-kit' || !obj.meta) throw new Error('Not a Rampart kit backup');
+    if(!obj || obj.kind!=='rampart-kit' || !obj.meta) return Promise.reject(new Error('Not a Rampart kit backup'));
     // remove existing engagement data + meta + working
     lsKeys().forEach(function(k){ if(k && (k.indexOf(SNAP)===0 || k===META)) localStorage.removeItem(k); });
     clearWorking();
@@ -113,17 +125,26 @@
     var snaps=obj.snapshots||{};
     Object.keys(snaps).forEach(function(id){ try{ localStorage.setItem(snapKey(id), JSON.stringify(snaps[id])); }catch(e){} });
     if(obj.meta.active) loadSnap(obj.meta.active);
+    var M=MEDIA(); if(!M || !obj.media) return Promise.resolve();
+    return M.load(obj.media);
   }
 
   /* ---- wipe ---- */
-  function wipeEngagement(){ clearWorking(); } // clears active engagement live data, keeps the engagement entry
+  function wipeEngagement(){
+    var ids=idsInData(readWorking());
+    clearWorking();
+    var M=MEDIA(); if(M && ids.length) return M.del(ids);
+    return Promise.resolve();
+  }
   function wipeDevice(){
     lsKeys().forEach(function(k){ if(k && (k.indexOf('rampart.')===0 || k.indexOf('rampartkit.')===0)) localStorage.removeItem(k); });
+    var M=MEDIA(); if(M) return M.clear();
+    return Promise.resolve();
   }
 
   /* ---- live status ---- */
   function allFindings(){
-    var keys=['rampart.credential.findings','rampart.sweep.findings','rampart.aether.findings','rampart.footprint.findings','rampart.tumbler.findings'];
+    var keys=['rampart.credential.findings','rampart.sweep.findings','rampart.aether.findings','rampart.footprint.findings','rampart.tumbler.findings','rampart.patrol.findings','rampart.sightline.findings'];
     var out=[];
     keys.forEach(function(k){ var a=getJSON(k,[]); if(Array.isArray(a)) out=out.concat(a); });
     return out;
@@ -139,14 +160,35 @@
     var loadout=getJSON('rampart.quartermaster.loadout',null);
     var packed=0, total=0;
     if(Array.isArray(loadout)) loadout.forEach(function(cat){ (cat.items||[]).forEach(function(it){ total++; if(it.packed) packed++; }); });
+    var exhibit=getJSON('rampart.exhibit.log',[]); var evidence=Array.isArray(exhibit)?exhibit.length:0;
+    if(Array.isArray(exhibit)) exhibit.forEach(function(e){ if(e.time && e.time>last) last=e.time; });
+    var items=getJSON('rampart.debrief.items',[]); var remOpen=0, remTotal=0;
+    if(Array.isArray(items)){ remTotal=items.length; items.forEach(function(i){ if(i.status!=='closed') remOpen++; }); }
+    var remit=getJSON('rampart.remit.plan',null); var hasRemit=!!(remit && remit.objective);
+    var hasSeal=!!getJSON('rampart.safeconduct.seal',null);
+    var gauge=getJSON('rampart.gauge.log',[]); var measurements=Array.isArray(gauge)?gauge.length:0;
+    var hasAuth=!!(auth && auth.eng);
+    var next;
+    if(!hasRemit) next='Plan the engagement in Remit';
+    else if(!hasAuth) next='Fill the authorization in Safeconduct';
+    else if(f.length===0) next='Run the survey';
+    else if(remTotal===0) next='Compile the report in Docket';
+    else if(remOpen>0) next='Track remediation in Debrief';
+    else next='Engagement complete';
     return {
       engagement: activeName(),
       findings: c,
       findingsTotal: f.length,
-      authorization: !!(auth && auth.eng),
-      authName: auth && auth.eng ? auth.eng : '',
+      authorization: hasAuth,
+      authName: hasAuth ? auth.eng : '',
       readiness: { packed:packed, total:total },
-      lastActivity: last
+      lastActivity: last,
+      evidence: evidence,
+      remediation: { open:remOpen, total:remTotal },
+      hasRemit: hasRemit,
+      hasSeal: hasSeal,
+      measurements: measurements,
+      nextStep: next
     };
   }
 

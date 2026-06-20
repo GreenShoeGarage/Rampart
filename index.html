@@ -21,6 +21,8 @@
   .data-actions { display:flex; gap:9px; flex-wrap:wrap; margin-top:18px; }
 </style>
 <script src="gate.js"></script>
+<script src="core.js"></script>
+<script src="media.js"></script>
 <script src="kit.js"></script>
 <script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
 </head>
@@ -52,8 +54,11 @@
       <div class="tile"><div class="tl">Findings</div><div class="tv" id="t-findings">0</div><div id="t-sev" style="margin-top:6px;"></div></div>
       <div class="tile"><div class="tl">Authorization</div><div class="tv sm" id="t-auth">Not set</div></div>
       <div class="tile"><div class="tl">Readiness</div><div class="tv" id="t-ready">0 / 0</div></div>
+      <div class="tile"><div class="tl">Evidence</div><div class="tv" id="t-evidence">0</div></div>
+      <div class="tile"><div class="tl">Remediation</div><div class="tv" id="t-rem">0 / 0</div></div>
       <div class="tile"><div class="tl">Last activity</div><div class="tv sm" id="t-last">None yet</div></div>
     </div>
+    <div id="next-step" style="margin-top:14px;font-family:var(--mono);font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:var(--rust);"></div>
     <div class="data-actions">
       <button class="btn ghost sm" id="d-backup">Backup engagement</button>
       <button class="btn ghost sm" id="d-restore">Restore</button>
@@ -194,6 +199,41 @@
         <span class="status live">Live</span>
       </a>
 
+      <a class="compartment rise" href="preflight.html">
+        <div class="idx">MOD 19</div>
+        <div class="cname">Preflight</div>
+        <div class="cfn">Device capability self-check. Tests the camera, sensors, crypto, and storage this phone offers and reports which modules will run on it. Run it before you walk in.</div>
+        <span class="status live">Live</span>
+      </a>
+
+      <a class="compartment rise" href="acoustic.html">
+        <div class="idx">MOD 20</div>
+        <div class="cname">Acoustic</div>
+        <div class="cfn">Relative sound level meter. Reads the ambient noise floor and its frequency balance to judge masking noise and acoustic privacy. Feeds the Sweep assessment.</div>
+        <span class="status live">Live</span>
+      </a>
+
+      <a class="compartment rise" href="patrol.html">
+        <div class="idx">MOD 21</div>
+        <div class="cname">Patrol</div>
+        <div class="cfn">Patrol logger. Log timestamped passes at checkpoints, then read the cadence for predictable timing, coverage gaps, and unwatched stations. Weaknesses raise as findings.</div>
+        <span class="status live">Live</span>
+      </a>
+
+      <a class="compartment rise" href="sightline.html">
+        <div class="idx">MOD 22</div>
+        <div class="cname">Sightline</div>
+        <div class="cfn">Camera coverage mapper. Place cameras on a plan, set aim and field of view, and see the coverage and the blind spots. Gaps over entries raise as findings.</div>
+        <span class="status live">Live</span>
+      </a>
+
+      <a class="compartment rise" href="cache.html">
+        <div class="idx">MOD 23</div>
+        <div class="cname">Cache</div>
+        <div class="cfn">Passphrase encrypted vault. Holds sensitive notes and secrets encrypted at rest with AES-GCM, unreadable off a lost device without the passphrase. Locks on idle.</div>
+        <span class="status live">Live</span>
+      </a>
+
     </div>
   </section>
 
@@ -215,7 +255,6 @@
   var K = window.RampartKit;
   if(!K) return;
   K.ensureInit();
-  var $ = function(id){ return document.getElementById(id); };
   var POSTURE = { crit:'pill crit', weak:'pill weak', strong:'pill strong', info:'pill info' };
   var LABEL = { crit:'C', weak:'M', strong:'A', info:'I' };
 
@@ -234,7 +273,10 @@
     }).join('');
     $('t-auth').textContent = s.authorization ? (s.authName||'Set') : 'Not set';
     $('t-ready').textContent = s.readiness.packed + ' / ' + s.readiness.total;
+    $('t-evidence').textContent = s.evidence;
+    $('t-rem').textContent = s.remediation.open + ' / ' + s.remediation.total;
     $('t-last').textContent = s.lastActivity ? s.lastActivity.replace('T',' ').slice(0,16) : 'None yet';
+    $('next-step').textContent = s.nextStep ? 'Next: ' + s.nextStep : '';
   }
   function refresh(){ renderEngagements(); renderStatus(); }
 
@@ -261,33 +303,33 @@
   }
   function safeName(s){ return (s||'engagement').replace(/[^a-z0-9]+/gi,'-').toLowerCase(); }
 
-  $('d-backup').addEventListener('click', function(){ download(K.exportEngagement(), 'rampart-'+safeName(K.activeName())+'.json'); });
-  $('d-backupall').addEventListener('click', function(){ download(K.exportAll(), 'rampart-kit-backup.json'); });
+  $('d-backup').addEventListener('click', async function(){ download(await K.exportEngagement(), 'rampart-'+safeName(K.activeName())+'.json'); });
+  $('d-backupall').addEventListener('click', async function(){ download(await K.exportAll(), 'rampart-kit-backup.json'); });
 
   var restoreMode = 'engagement';
   $('d-restore').addEventListener('click', function(){ restoreMode='engagement'; $('d-file').click(); });
   $('d-file').addEventListener('change', function(e){
     var file = e.target.files[0]; if(!file) return;
     var rd = new FileReader();
-    rd.onload = function(){
+    rd.onload = async function(){
       try{
         var obj = JSON.parse(rd.result);
         if(obj.kind==='rampart-kit'){
-          if(confirm('This is a full kit backup. Restoring it replaces ALL engagements on this device. Continue?')){ K.importAll(obj); refresh(); alert('Kit restored.'); }
+          if(confirm('This is a full kit backup. Restoring it replaces ALL engagements on this device. Continue?')){ await K.importAll(obj); refresh(); alert('Kit restored.'); }
         } else if(obj.kind==='rampart-engagement'){
-          K.importEngagement(obj); refresh(); alert('Engagement restored as a new entry.');
+          await K.importEngagement(obj); refresh(); alert('Engagement restored as a new entry.');
         } else { alert('Not a Rampart backup file.'); }
       }catch(err){ alert('Could not read that file.'); }
     };
     rd.readAsText(file); e.target.value='';
   });
 
-  $('d-wipe').addEventListener('click', function(){
-    if(confirm('Wipe the active engagement\u2019s data? The engagement entry stays, but its findings, letter, and logs are cleared.')){ K.wipeEngagement(); refresh(); }
+  $('d-wipe').addEventListener('click', async function(){
+    if(confirm('Wipe the active engagement\u2019s data? The engagement entry stays, but its findings, letter, and logs are cleared.')){ await K.wipeEngagement(); refresh(); }
   });
-  $('d-wipedev').addEventListener('click', function(){
+  $('d-wipedev').addEventListener('click', async function(){
     if(confirm('WIPE DEVICE: erase every engagement and all Rampart data on this device, including the acceptable-use acknowledgement. For handing back a loaner. Continue?')){
-      K.wipeDevice(); location.reload();
+      await K.wipeDevice(); location.reload();
     }
   });
 

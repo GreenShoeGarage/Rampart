@@ -40,6 +40,8 @@
 <meta name="theme-color" content="#15191c">
 <link rel="apple-touch-icon" href="icon-192.png">
 <script src="gate.js"></script>
+<script src="core.js"></script>
+<script src="media.js"></script>
 <script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
 </head>
 <body>
@@ -96,6 +98,7 @@
         <h3 style="margin:0;">Compiled report</h3>
         <div class="row-actions" style="margin:0;">
           <button class="btn" id="print">Print / Save PDF</button>
+          <button class="btn ghost sm" id="html">Save as HTML</button>
           <button class="btn ghost sm" id="copy">Copy text</button>
           <button class="btn ghost sm" id="export">Export JSON</button>
           <button class="btn ghost sm" id="csv">Export CSV</button>
@@ -114,24 +117,22 @@
 </footer>
 
 <script>
-const $ = id => document.getElementById(id);
-function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
-const store = {
-  get(k,d){ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):d; }catch(e){ return d; } },
-  set(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){} }
-};
 const POSTURE_LABEL={crit:'Critical',weak:'Medium',strong:'Adequate',info:'Informational'};
 const POSTURE_PILL ={crit:'pill crit',weak:'pill weak',strong:'pill strong',info:'pill info'};
 const SEV=['crit','weak','strong','info'];
 
 const DKEY='rampart.docket.dataset';
-let data = store.get(DKEY, { auth:null, log:[], findings:[], cover:{} });
+let data = store.get(DKEY, { auth:null, log:[], findings:[], cover:{}, exhibits:[], remit:null, debrief:[] });
 if(!data.cover) data.cover={};
+if(!data.exhibits) data.exhibits=[];
+if(!data.debrief) data.debrief=[];
 
 /* ---------- normalization ---------- */
 function srcOf(f){
   if(f.band!==undefined) return 'Aether';
   if(f.attrs!==undefined) return 'Sweep';
+  if(f.type==='Patrol' || (f.type && /patrol|cadence|checkpoint/i.test(f.type))) return 'Patrol';
+  if(f.type==='Coverage' || (f.type && /coverage|blind ?spot|sightline/i.test(f.type))) return 'Sightline';
   if(f.wire!==undefined || (f.tech!==undefined && f.item===undefined)) return 'Credential';
   if(f.type && /door|perimeter|barrier|camera|gate|window|lighting|alarm|reception/i.test(f.type)) return 'Sweep';
   if(f.type && /approach|exposure|footprint/i.test(f.type)) return 'Footprint';
@@ -150,6 +151,7 @@ function normalize(f){
     note: f.note || '',
     extra: f.band ? ('Band '+f.band) : (f.wire ? ('Reader link '+f.wire) : ''),
     photo: f.photo || null,
+    photoId: f.photoId || null,
     status: ['open','progress','closed'].includes(f.status) ? f.status : 'open',
     time: f.time || ''
   };
@@ -168,10 +170,13 @@ function restoreStatus(mem){ data.findings.forEach(f=>{ if(mem[fkey(f)]) f.statu
 $('pull').onclick=()=>{
   const mem=statusMemory();
   data.findings=[];
-  ['rampart.credential.findings','rampart.sweep.findings','rampart.aether.findings','rampart.footprint.findings','rampart.tumbler.findings'].forEach(k=>addFindings(store.get(k,[])));
+  ['rampart.credential.findings','rampart.sweep.findings','rampart.aether.findings','rampart.footprint.findings','rampart.tumbler.findings','rampart.patrol.findings','rampart.sightline.findings'].forEach(k=>addFindings(store.get(k,[])));
   restoreStatus(mem);
   const auth=store.get('rampart.safeconduct.auth',null); if(auth && Object.keys(auth).length) data.auth=auth;
   const log=store.get('rampart.safeconduct.log',[]); if(log.length) data.log=log;
+  const exhibit=store.get('rampart.exhibit.log',[]); data.exhibits = Array.isArray(exhibit)?exhibit:[];
+  const remit=store.get('rampart.remit.plan',null); data.remit = (remit && remit.objective)?remit:null;
+  const dbItems=store.get('rampart.debrief.items',[]); data.debrief = Array.isArray(dbItems)?dbItems:[];
   store.set(DKEY,data); renderSources(); renderReport();
 };
 
@@ -188,7 +193,7 @@ $('file').onchange=async e=>{
   }
   e.target.value=''; store.set(DKEY,data); renderSources(); renderReport();
 };
-$('clear').onclick=()=>{ if(confirm('Clear all loaded sources?')){ data={auth:null,log:[],findings:[],cover:{}}; store.set(DKEY,data); $('cv-title').value=''; $('cv-client').value=''; $('cv-logo-prev').innerHTML=''; renderSources(); renderReport(); } };
+$('clear').onclick=()=>{ if(confirm('Clear all loaded sources?')){ data={auth:null,log:[],findings:[],cover:{},exhibits:[],remit:null,debrief:[]}; store.set(DKEY,data); $('cv-title').value=''; $('cv-client').value=''; $('cv-logo-prev').innerHTML=''; renderSources(); renderReport(); } };
 
 /* ---------- cover ---------- */
 $('cv-title').value=data.cover.title||''; $('cv-client').value=data.cover.client||'';
@@ -258,7 +263,7 @@ function findingTable(list, showStatus){
 }
 function renderReport(){
   const el=$('report-doc');
-  if(!data.findings.length && !data.auth){ el.innerHTML='<div class="empty">Nothing loaded yet. Pull from this device or import files under Sources.</div>'; return; }
+  if(!data.findings.length && !data.auth && !data.remit && !(data.exhibits&&data.exhibits.length)){ el.innerHTML='<div class="empty">Nothing loaded yet. Pull from this device or import files under Sources.</div>'; return; }
   const a=data.auth||{};
   const cv=data.cover||{};
   const title = cv.title || a.eng || 'Assessment Report';
@@ -293,6 +298,17 @@ function renderReport(){
        st.open+' open, '+st.progress+' in progress, '+st.closed+' closed.</p>';
   }
 
+  if(data.remit){
+    const r=data.remit;
+    const TL={opportunist:'Opportunist',insider:'Insider',activist:'Activist or protester',crew:'Organized crew',advanced:'Advanced and well resourced'};
+    const PL={crit:'Critical',weak:'High',info:'Moderate'};
+    h+='<div class="sev-head">Engagement framing</div>';
+    if(r.objective) h+='<p style="color:var(--mute);font-size:14.5px;"><strong style="color:var(--cream);">Objective.</strong> '+esc(r.objective)+'</p>';
+    if(r.tier) h+='<p style="color:var(--mute);font-size:14.5px;"><strong style="color:var(--cream);">Modeled adversary.</strong> '+esc(TL[r.tier]||r.tier)+(r.capability?'. '+esc(r.capability):'')+'</p>';
+    if(r.assets && r.assets.length) h+='<p style="color:var(--mute);font-size:14.5px;"><strong style="color:var(--cream);">Protected assets.</strong> '+r.assets.map(function(a){return esc(a.name)+' ('+esc(PL[a.priority]||a.priority)+')';}).join('; ')+'</p>';
+    if(r.success) h+='<p style="color:var(--mute);font-size:14.5px;"><strong style="color:var(--cream);">Success criteria.</strong> '+esc(r.success)+'</p>';
+  }
+
   if(a['in-scope']||a['out-scope']){
     h+='<div class="sev-head">Scope</div>';
     if(a['in-scope']) h+='<div style="margin-bottom:10px;"><div class="k" style="font-family:var(--mono);font-size:10.5px;letter-spacing:0.14em;text-transform:uppercase;color:var(--steel);">In scope</div><div class="scope-box">'+esc(a['in-scope'])+'</div></div>';
@@ -319,11 +335,33 @@ function renderReport(){
     if(resolved.length) h+='<p style="color:var(--mute);font-size:13.5px;"><strong style="color:var(--cream);">Resolved:</strong> '+resolved.map(function(f){return esc(f.loc+' / '+f.item);}).join('; ')+'</p>';
   }
 
-  const withPhoto=data.findings.filter(function(f){ return f.photo; });
+  if(data.debrief && data.debrief.length){
+    const SL={open:'Open',progress:'In progress',closed:'Closed'};
+    const dc={open:0,progress:0,closed:0}; data.debrief.forEach(function(i){ if(dc[i.status]!=null) dc[i.status]++; });
+    h+='<div class="sev-head">Remediation status</div>'+
+       '<p style="margin:4px 0;"><span class="pill crit">Open '+dc.open+'</span> <span class="pill weak" style="margin-left:6px;">In progress '+dc.progress+'</span> <span class="pill strong" style="margin-left:6px;">Closed '+dc.closed+'</span></p>'+
+       '<table class="tbl"><thead><tr><th>Item</th><th>Owner</th><th>Due</th><th>Status</th></tr></thead><tbody>'+
+       data.debrief.map(function(i){ return '<tr><td>'+esc(i.item)+(i.loc?' <span style="color:var(--faint);font-size:12px;">'+esc(i.loc)+'</span>':'')+'</td><td>'+esc(i.owner||'-')+'</td><td class="mono" style="font-size:11.5px;">'+esc(i.due||'-')+'</td><td>'+esc(SL[i.status]||i.status)+'</td></tr>'; }).join('')+
+       '</tbody></table>';
+  }
+
+  const withPhoto=data.findings.filter(function(f){ return f.photo || f.photoId; });
   if(withPhoto.length){
     h+='<div class="sev-head">Appendix · Photo evidence</div><div style="display:flex;flex-wrap:wrap;gap:14px;">';
-    withPhoto.forEach(function(f){
-      h+='<div style="width:200px;"><img src="'+f.photo+'" style="width:100%;border:1px solid var(--line);border-radius:2px;"><div style="font-size:12px;color:var(--mute);margin-top:4px;">'+esc(f.loc)+' / '+esc(f.item)+' <span class="'+POSTURE_PILL[f.posture]+'">'+POSTURE_LABEL[f.posture]+'</span></div></div>';
+    withPhoto.forEach(function(f,wi){
+      h+='<div style="width:200px;"><img data-fpi="'+wi+'" style="width:100%;border:1px solid var(--line);border-radius:2px;"><div style="font-size:12px;color:var(--mute);margin-top:4px;">'+esc(f.loc)+' / '+esc(f.item)+' <span class="'+POSTURE_PILL[f.posture]+'">'+POSTURE_LABEL[f.posture]+'</span></div></div>';
+    });
+    h+='</div>';
+  }
+
+  if(data.exhibits && data.exhibits.length){
+    h+='<div class="sev-head">Appendix · Evidence register</div>'+
+       '<p style="color:var(--faint);font-size:13px;">'+data.exhibits.length+' exhibit'+(data.exhibits.length===1?'':'s')+', timestamped and hash chained. Each carries a SHA-256 fingerprint and a chain seal; integrity is verifiable in Exhibit.</p>'+
+       '<div style="display:flex;flex-wrap:wrap;gap:14px;">';
+    data.exhibits.forEach(function(e,i){
+      const g = e.geo ? esc(e.geo.lat.toFixed(5)+', '+e.geo.lon.toFixed(5)) : 'No location';
+      h+='<div style="width:200px;"><img data-exi="'+i+'" style="width:100%;border:1px solid var(--line);border-radius:2px;"><div style="font-size:12px;color:var(--mute);margin-top:4px;">Exhibit '+String(i+1).padStart(3,'0')+(e.caption?' · '+esc(e.caption):'')+'</div>'+
+         '<div style="font-family:var(--mono);font-size:10px;color:var(--steel);margin-top:3px;">'+esc((e.time||'').replace('T',' ').slice(0,19))+'<br>'+g+'<br>img '+esc((e.imageHash||'').slice(0,12))+'<br>seal '+esc((e.chain||'').slice(0,12))+'</div></div>';
     });
     h+='</div>';
   }
@@ -336,6 +374,11 @@ function renderReport(){
        '</tbody></table>';
   }
   el.innerHTML=h;
+  (async function(){
+    const M=window.RampartMedia;
+    el.querySelectorAll('img[data-exi]').forEach(async function(im){ const e=(data.exhibits||[])[+im.dataset.exi]; if(!e) return; let url=e.img; if(!url && e.imgId && M){ try{ url=await M.get(e.imgId); }catch(err){} } if(url) im.src=url; });
+    el.querySelectorAll('img[data-fpi]').forEach(async function(im){ const f=withPhoto[+im.dataset.fpi]; if(!f) return; let url=f.photo; if(!url && f.photoId && M){ try{ url=await M.get(f.photoId); }catch(err){} } if(url) im.src=url; });
+  })();
   el.querySelectorAll('.status-sel').forEach(s=>s.addEventListener('change',()=>{
     const i=+s.dataset.idx; if(data.findings[i]){ data.findings[i].status=s.value; store.set(DKEY,data); renderReport(); }
   }));
@@ -361,6 +404,29 @@ function reportText(){
 $('copy').onclick=async()=>{ try{ await navigator.clipboard.writeText(reportText()); alert('Report copied to clipboard.'); }catch(e){ alert('Copy failed. Use Export JSON.'); } };
 $('export').onclick=()=>{ const b=new Blob([JSON.stringify(data,null,2)],{type:'application/json'}); const x=document.createElement('a'); x.href=URL.createObjectURL(b); x.download='docket-report.json'; x.click(); URL.revokeObjectURL(x.href); };
 $('print').onclick=()=>{ document.querySelector('.tab[data-tab="report"]').click(); window.print(); };
+
+async function reportCss(){
+  let theme='';
+  try{ const r=await fetch('theme.css'); if(r.ok) theme=await r.text(); }catch(e){}
+  let own=''; document.querySelectorAll('style').forEach(s=>{ own+=s.textContent+'\n'; });
+  return theme+'\n'+own+'\nbody{max-width:880px;margin:0 auto;padding:30px 20px;}\n';
+}
+$('html').onclick=async()=>{
+  document.querySelector('.tab[data-tab="report"]').click();
+  renderReport();
+  const src=$('report-doc');
+  if(src.querySelector('.empty')){ alert('Nothing to export yet. Pull from this device first.'); return; }
+  const clone=src.cloneNode(true);
+  const M=window.RampartMedia;
+  for(const im of clone.querySelectorAll('img[data-exi]')){ const e=(data.exhibits||[])[+im.dataset.exi]; let u=e&&e.img; if(!u && e&&e.imgId && M){ try{ u=await M.get(e.imgId); }catch(x){} } if(u) im.setAttribute('src',u); im.removeAttribute('data-exi'); }
+  const withPhoto=data.findings.filter(f=>f.photo||f.photoId);
+  for(const im of clone.querySelectorAll('img[data-fpi]')){ const f=withPhoto[+im.dataset.fpi]; let u=f&&f.photo; if(!u && f&&f.photoId && M){ try{ u=await M.get(f.photoId); }catch(x){} } if(u) im.setAttribute('src',u); im.removeAttribute('data-fpi'); }
+  const css=await reportCss();
+  const title=(data.cover&&data.cover.title)||(data.auth&&data.auth.eng)||'Rampart assessment report';
+  const doc='<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>'+esc(title)+'</title><style>'+css+'</style></head><body><div class="card" id="report-doc">'+clone.innerHTML+'</div></body></html>';
+  const b=new Blob([doc],{type:'text/html'});
+  const x=document.createElement('a'); x.href=URL.createObjectURL(b); x.download='rampart-report.html'; x.click(); URL.revokeObjectURL(x.href);
+};
 
 function csvCell(s){ s=String(s==null?'':s); return /[",\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s; }
 $('csv').onclick=()=>{
