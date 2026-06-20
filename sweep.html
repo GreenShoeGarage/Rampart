@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SWEEP - Rampart Field Kit</title>
+<meta name="description" content="Walking survey. Inspect doors, barriers, and cameras against a rubric and log scored findings.">
+<link rel="stylesheet" href="theme.css">
+<style>
+  .suggest {
+    display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+    border:1px dashed var(--line-2); border-radius:var(--rad); padding:12px 14px; margin:6px 0 16px;
+  }
+  .suggest .lab { font-family:var(--mono); font-size:11px; letter-spacing:0.16em; text-transform:uppercase; color:var(--steel); }
+  .suggest .fix { color:var(--mute); font-size:13.5px; flex:1; min-width:200px; }
+  #dyn .two-col { margin-top:0; }
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#15191c">
+<link rel="apple-touch-icon" href="icon-192.png">
+<script src="gate.js"></script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</head>
+<body>
+<div class="band"><span>Authorized assessment use only</span></div>
+
+<header class="masthead">
+  <div class="wrap">
+    <div class="crumbs"><a href="index.html">Rampart</a><span class="sep">/</span><span>Mod 05</span><span class="sep">/</span><span>Sweep</span></div>
+    <div class="kit-title"><span class="name">Sweep</span><span class="no">033 · 05</span></div>
+    <div class="kit-sub">Walking Survey</div>
+    <p class="kit-lede">Walk the site, pick what you are standing in front of, and score it against the right checklist. Doors, barriers, and cameras run through one instrument and land in one findings list. The dropdown grows as the kit does.</p>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" aria-selected="true"  data-tab="survey">Survey</button>
+    <button class="tab" role="tab" aria-selected="false" data-tab="findings">Findings</button>
+  </div>
+
+  <!-- SURVEY -->
+  <section class="panel active" id="survey">
+    <div class="card">
+      <h3>Inspect a feature</h3>
+      <div class="two-col">
+        <label class="fld"><span>Feature type</span><select id="ftype"></select></label>
+        <label class="fld"><span>Location / opening</span><input id="loc" placeholder="e.g. North service door"></label>
+      </div>
+
+      <div id="dyn"></div>
+
+      <div class="suggest">
+        <span class="lab">Suggested</span>
+        <span id="sug-pill"></span>
+        <span class="fix" id="sug-fix"></span>
+      </div>
+
+      <div class="two-col">
+        <label class="fld"><span>Severity (override allowed)</span>
+          <select id="sev"><option value="crit">Critical</option><option value="weak">Weak</option><option value="strong">Strong</option><option value="info">Info</option></select>
+        </label>
+        <label class="fld"><span>Recommendation</span><input id="fix" placeholder="Auto filled from the rubric, edit as needed"></label>
+      </div>
+      <label class="fld"><span>Note (optional)</span><input id="note" placeholder="Context, exposure, mitigating controls"></label>
+      <label class="fld"><span>Photo (optional)</span>
+        <input type="file" id="photo" accept="image/*" capture="environment">
+      </label>
+      <div id="photo-prev" style="margin:-4px 0 14px;"></div>
+      <div class="row-actions">
+        <label class="switch" style="display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:var(--mute);"><input type="checkbox" id="geo" style="width:auto;"> Tag location</label>
+        <button class="btn" id="add">Add finding</button>
+        <button class="btn ghost" id="cancel" style="display:none;">Cancel edit</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- FINDINGS -->
+  <section class="panel" id="findings">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+        <h3 style="margin:0;">Findings</h3>
+        <div class="row-actions" style="margin:0;">
+          <button class="btn ghost sm" id="export">Export JSON</button>
+          <button class="btn ghost sm" id="clear">Clear</button>
+        </div>
+      </div>
+      <div id="summary" style="margin:14px 0;"></div>
+      <div id="list"></div>
+    </div>
+  </section>
+</main>
+
+<footer class="wrap foot">
+  <span><a href="index.html" style="color:var(--mute);">&larr; Back to kit</a></span>
+  <span>Sweep · Mod 05</span>
+</footer>
+
+<script>
+const $ = id => document.getElementById(id);
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+const store = {
+  get(k,d){ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):d; }catch(e){ return d; } },
+  set(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){} }
+};
+
+/* ---------- feature schema (data driven; add a type here, no other code) ---------- */
+function rate(flags, allUnknown){
+  // flags: array of {w (weight 1..2), f (fix text)}
+  if(allUnknown) return { posture:'info', fix:'Record the details to score this feature.' };
+  const w = flags.reduce((a,b)=>a+b.w,0);
+  const posture = w>=3 ? 'crit' : w>=1 ? 'weak' : 'strong';
+  const fix = flags.length ? flags.map(f=>f.f).join('. ')+'.' : 'No deficiency noted. Maintain current standard.';
+  return { posture, fix };
+}
+function notDefault(v){ return v && v!=='Unknown' && v!=='N/A'; }
+
+const FEATURES = {
+  door: {
+    label:'Door / opening',
+    fields:[
+      ['grade','Lockset grade',['Grade 1','Grade 2','Grade 3','None','Unknown']],
+      ['latch','Latch protection',['Deadbolt','Latch guard','Astragal','None','Unknown']],
+      ['gap','Door gap',['Tight','Moderate','Wide','Unknown']],
+      ['hinges','Hinges',['Interior','Security pinned','Exterior exposed','Unknown']],
+      ['closer','Self closing',['Yes','No','N/A']],
+      ['frame','Frame condition',['Solid','Weak or damaged','Unknown']]
+    ],
+    score(a){
+      const f=[];
+      if(a.grade==='None') f.push({w:2,f:'Fit a Grade 1 or 2 lockset'});
+      else if(a.grade==='Grade 3') f.push({w:1,f:'Uprate the lockset to Grade 1 or 2 for this opening'});
+      if(a.hinges==='Exterior exposed') f.push({w:2,f:'Fit security or non removable hinge pins'});
+      if(a.gap==='Wide') f.push({w:1,f:'Close the door gap or add a latch guard'});
+      if(a.latch==='None') f.push({w:1,f:'Add latch protection (deadbolt, latch guard, or astragal)'});
+      if(a.frame==='Weak or damaged') f.push({w:1,f:'Repair or reinforce the frame and strike'});
+      const known = [a.grade,a.latch,a.gap,a.hinges,a.frame].some(notDefault);
+      const item = [a.grade&&a.grade!=='Unknown'?a.grade+' lockset':null, a.hinges==='Exterior exposed'?'exposed hinges':null, a.gap==='Wide'?'wide gap':null].filter(Boolean).join(', ') || 'Door';
+      return { item, ...rate(f, !known) };
+    }
+  },
+  perimeter: {
+    label:'Perimeter / barrier',
+    fields:[
+      ['btype','Barrier type',['Wall','Palisade','Chain link','Mesh','Rail','None']],
+      ['height','Height',['Under 1.2 m','1.2 to 1.8 m','1.8 to 2.4 m','Over 2.4 m','Unknown']],
+      ['climb','Climb aids nearby',['None','Some','Many','Unknown']],
+      ['gaps','Gaps or breaches',['None','Minor','Major','Unknown']],
+      ['topping','Topping',['Razor or barbed','Anti climb','None','Unknown']],
+      ['cond','Condition',['Good','Degraded','Unknown']]
+    ],
+    score(a){
+      const f=[];
+      if(a.btype==='None') f.push({w:2,f:'Establish a defined perimeter barrier'});
+      if(a.height==='Under 1.2 m') f.push({w:2,f:'Raise the barrier height to resist easy scaling'});
+      else if(a.height==='1.2 to 1.8 m') f.push({w:1,f:'Consider a taller barrier for a sensitive perimeter'});
+      if(a.climb==='Many') f.push({w:2,f:'Remove or relocate climb aids near the line'});
+      else if(a.climb==='Some') f.push({w:1,f:'Clear climb aids near the line'});
+      if(a.gaps==='Major') f.push({w:2,f:'Close the major gap in the barrier'});
+      else if(a.gaps==='Minor') f.push({w:1,f:'Repair minor gaps in the barrier'});
+      if(a.cond==='Degraded') f.push({w:1,f:'Restore the barrier to sound condition'});
+      const known = [a.btype,a.height,a.climb,a.gaps,a.cond].some(notDefault);
+      const item = [a.btype&&a.btype!=='Unknown'?a.btype:null, a.height&&a.height!=='Unknown'?a.height:null].filter(Boolean).join(', ') || 'Barrier';
+      return { item, ...rate(f, !known) };
+    }
+  },
+  camera: {
+    label:'Camera / CCTV',
+    fields:[
+      ['ctype','Camera type',['Fixed','PTZ','Dome','Bullet','Dummy','Unknown']],
+      ['mount','Mounting',['High and protected','Reachable','Unknown']],
+      ['fov','Field of view',['Covers approach','Partial','Pointed away','Unknown']],
+      ['blind','Blind spot here',['No','Yes','Major dead zone']],
+      ['rec','Recording',['Recorded and monitored','Recorded only','Not recorded','Unknown']]
+    ],
+    score(a){
+      const f=[];
+      if(a.ctype==='Dummy') f.push({w:1,f:'Replace the dummy unit with a working camera'});
+      if(a.rec==='Not recorded') f.push({w:2,f:'Enable recording and monitoring for this view'});
+      else if(a.rec==='Recorded only') f.push({w:1,f:'Add monitoring or alerting to the recorded feed'});
+      if(a.blind==='Major dead zone') f.push({w:2,f:'Reposition or add a camera to close the dead zone'});
+      else if(a.blind==='Yes') f.push({w:1,f:'Adjust coverage to remove the blind spot'});
+      if(a.fov==='Pointed away') f.push({w:2,f:'Aim the camera to cover the approach'});
+      else if(a.fov==='Partial') f.push({w:1,f:'Widen or re aim to fully cover the approach'});
+      if(a.mount==='Reachable') f.push({w:1,f:'Mount out of reach or protect the housing'});
+      const known = [a.ctype,a.mount,a.fov,a.blind,a.rec].some(notDefault);
+      const item = [a.ctype&&a.ctype!=='Unknown'?a.ctype:null, a.blind&&a.blind!=='No'?'blind spot':null, a.rec==='Not recorded'?'not recorded':null].filter(Boolean).join(', ') || 'Camera';
+      return { item, ...rate(f, !known) };
+    }
+  },
+  gate: {
+    label:'Gate / vehicle access',
+    fields:[
+      ['gtype','Gate type',['Swing','Slide','Barrier arm','Bollard','None']],
+      ['ctrl','Access control',['Credentialed','Keypad','Intercom','Manual','None']],
+      ['tail','Tailgating control',['Anti tailgate','None','Unknown']],
+      ['cond','Condition',['Good','Degraded','Unknown']]
+    ],
+    score(a){
+      const f=[];
+      if(a.ctrl==='None') f.push({w:2,f:'Add access control to the vehicle gate'});
+      else if(a.ctrl==='Manual') f.push({w:1,f:'Consider credentialed control in place of manual operation'});
+      if(a.gtype==='None') f.push({w:2,f:'Establish a controlled vehicle barrier'});
+      if(a.tail==='None') f.push({w:1,f:'Add anti tailgating measures for vehicles'});
+      if(a.cond==='Degraded') f.push({w:1,f:'Restore the gate to sound working condition'});
+      const known=[a.gtype,a.ctrl,a.tail,a.cond].some(notDefault);
+      const item=[a.gtype&&a.gtype!=='Unknown'?a.gtype:null, a.ctrl&&a.ctrl!=='Unknown'?a.ctrl+' control':null].filter(Boolean).join(', ')||'Gate';
+      return { item, ...rate(f,!known) };
+    }
+  },
+  window: {
+    label:'Window / glazing',
+    fields:[
+      ['wtype','Glazing',['Laminated or security','Standard','Single pane','Unknown']],
+      ['access','Reachability',['Ground or reachable','Upper, not reachable','Unknown']],
+      ['latch','Latch or lock',['Keyed','Latch only','None','Unknown']],
+      ['bars','Bars or grille',['Yes','No','N/A']],
+      ['sensor','Alarm contact',['Contact and glass break','Contact only','None','Unknown']]
+    ],
+    score(a){
+      const f=[];
+      const reach = a.access==='Ground or reachable';
+      if(reach && a.wtype==='Single pane') f.push({w:2,f:'Upgrade reachable single pane glazing to laminated or security glass'});
+      else if(reach && a.wtype==='Standard') f.push({w:1,f:'Consider security film or laminated glass on reachable windows'});
+      if(reach && a.latch==='None') f.push({w:1,f:'Fit a keyed lock to the reachable window'});
+      if(reach && a.sensor==='None') f.push({w:1,f:'Add a contact and glass break sensor to the reachable window'});
+      const known=[a.wtype,a.access,a.latch,a.sensor].some(notDefault);
+      const item=[a.wtype&&a.wtype!=='Unknown'?a.wtype:null, reach?'reachable':null].filter(Boolean).join(', ')||'Window';
+      return { item, ...rate(f,!known) };
+    }
+  },
+  lighting: {
+    label:'Lighting',
+    fields:[
+      ['level','Illumination',['Bright','Adequate','Dim','Dark','Unknown']],
+      ['coverage','Coverage',['Even','Patchy','Gaps','Unknown']],
+      ['control','Control',['Dusk to dawn or sensor','Timed','Manual','Unknown']],
+      ['maint','Fixtures',['All working','Some out','Many out','Unknown']]
+    ],
+    score(a){
+      const f=[];
+      if(a.level==='Dark') f.push({w:2,f:'Light this area to an adequate level'});
+      else if(a.level==='Dim') f.push({w:1,f:'Raise illumination in this area'});
+      if(a.coverage==='Gaps') f.push({w:1,f:'Close the dark gaps in coverage'});
+      if(a.maint==='Many out') f.push({w:1,f:'Replace failed fixtures and set a maintenance cycle'});
+      if(a.control==='Manual') f.push({w:1,f:'Automate lighting with a dusk to dawn or motion control'});
+      const known=[a.level,a.coverage,a.control,a.maint].some(notDefault);
+      const item=[a.level&&a.level!=='Unknown'?a.level:null, a.coverage==='Gaps'?'coverage gaps':null].filter(Boolean).join(', ')||'Lighting';
+      return { item, ...rate(f,!known) };
+    }
+  },
+  alarm: {
+    label:'Alarm / intrusion sensor',
+    fields:[
+      ['stype','Sensor type',['PIR motion','Door or window contact','Glass break','Beam','None']],
+      ['coverage','Coverage',['Covers the area','Partial','Gap','Unknown']],
+      ['sig','Signalling',['Encrypted and supervised','Unencrypted','Unknown']],
+      ['monitor','Monitoring',['Monitored offsite','Local only','None','Unknown']]
+    ],
+    score(a){
+      const f=[];
+      if(a.stype==='None') f.push({w:2,f:'Add intrusion detection to this area'});
+      if(a.monitor==='None') f.push({w:2,f:'Connect the alarm to monitoring or alerting'});
+      else if(a.monitor==='Local only') f.push({w:1,f:'Add offsite monitoring to the local alarm'});
+      if(a.coverage==='Gap') f.push({w:1,f:'Close the gap in sensor coverage'});
+      if(a.sig==='Unencrypted') f.push({w:1,f:'Move to encrypted and supervised sensors'});
+      const known=[a.stype,a.coverage,a.sig,a.monitor].some(notDefault);
+      const item=[a.stype&&a.stype!=='Unknown'?a.stype:null, a.monitor==='None'?'unmonitored':null].filter(Boolean).join(', ')||'Sensor';
+      return { item, ...rate(f,!known) };
+    }
+  },
+  reception: {
+    label:'Reception / visitor control',
+    fields:[
+      ['staffed','Staffing',['Staffed','Intermittent','Unstaffed','Unknown']],
+      ['barrier','Entry barrier',['Turnstile or mantrap','Manned desk only','Open','Unknown']],
+      ['vlog','Visitor handling',['Log and badge','Log only','None','Unknown']],
+      ['escort','Escort policy',['Escorted','Self escort','None','Unknown']]
+    ],
+    score(a){
+      const f=[];
+      if(a.staffed==='Unstaffed' && a.barrier==='Open') f.push({w:2,f:'Control the entrance with staffing or a physical barrier'});
+      else if(a.barrier==='Open') f.push({w:1,f:'Add an entry barrier at reception'});
+      if(a.vlog==='None') f.push({w:1,f:'Introduce a visitor log and badge process'});
+      if(a.escort==='None') f.push({w:1,f:'Require visitor escort in controlled areas'});
+      const known=[a.staffed,a.barrier,a.vlog,a.escort].some(notDefault);
+      const item=[a.staffed&&a.staffed!=='Unknown'?a.staffed:null, a.barrier&&a.barrier!=='Unknown'?a.barrier:null].filter(Boolean).join(', ')||'Reception';
+      return { item, ...rate(f,!known) };
+    }
+  }
+};
+
+const POSTURE_LABEL={crit:'Critical',weak:'Weak',strong:'Strong',info:'Info'};
+const POSTURE_PILL ={crit:'pill crit',weak:'pill weak',strong:'pill strong',info:'pill info'};
+const SEV_ORDER ={crit:0,weak:1,strong:2,info:3};
+
+/* ---------- type dropdown ---------- */
+const ftypeSel=$('ftype');
+ftypeSel.innerHTML=Object.entries(FEATURES).map(([k,v])=>'<option value="'+k+'">'+esc(v.label)+'</option>').join('');
+
+/* ---------- dynamic fields ---------- */
+function buildFields(){
+  const def=FEATURES[ftypeSel.value];
+  let h='';
+  for(let i=0;i<def.fields.length;i+=2){
+    h+='<div class="two-col">';
+    [def.fields[i],def.fields[i+1]].forEach(fl=>{
+      if(!fl){ h+='<div></div>'; return; }
+      h+='<label class="fld"><span>'+esc(fl[1])+'</span><select data-k="'+fl[0]+'">'+
+         fl[2].map(o=>'<option>'+esc(o)+'</option>').join('')+'</select></label>';
+    });
+    h+='</div>';
+  }
+  $('dyn').innerHTML=h;
+  $('dyn').querySelectorAll('select').forEach(s=>s.addEventListener('change',recompute));
+  recompute();
+}
+function currentAttrs(){
+  const a={}; $('dyn').querySelectorAll('select').forEach(s=>a[s.dataset.k]=s.value); return a;
+}
+function recompute(){
+  const def=FEATURES[ftypeSel.value];
+  const r=def.score(currentAttrs());
+  $('sug-pill').innerHTML='<span class="'+POSTURE_PILL[r.posture]+'">'+POSTURE_LABEL[r.posture]+'</span>';
+  $('sug-fix').textContent=r.fix;
+  $('sev').value=r.posture;
+  $('fix').value=r.fix;
+}
+ftypeSel.addEventListener('change',buildFields);
+buildFields();
+
+/* ---------- findings ---------- */
+const KEY='rampart.sweep.findings';
+let finds=store.get(KEY,[]);
+let editIdx=-1;
+let photoData=null;
+
+/* photo capture + resize */
+$('photo').addEventListener('change', e=>{
+  const file=e.target.files[0]; if(!file) return;
+  const img=new Image(); const rd=new FileReader();
+  rd.onload=()=>{ img.onload=()=>{
+    const max=1024; let{width:w,height:h}=img;
+    if(w>h && w>max){ h=Math.round(h*max/w); w=max; } else if(h>max){ w=Math.round(w*max/h); h=max; }
+    const cv=document.createElement('canvas'); cv.width=w; cv.height=h;
+    cv.getContext('2d').drawImage(img,0,0,w,h);
+    photoData=cv.toDataURL('image/jpeg',0.6);
+    showPhotoPrev();
+  }; img.src=rd.result; };
+  rd.readAsDataURL(file);
+});
+function showPhotoPrev(){
+  $('photo-prev').innerHTML = photoData
+    ? '<img src="'+photoData+'" style="max-width:140px;border:1px solid var(--line-2);border-radius:2px;"> <button class="btn ghost sm" id="photo-clear">Remove photo</button>'
+    : '';
+  const pc=$('photo-clear'); if(pc) pc.onclick=()=>{ photoData=null; $('photo').value=''; showPhotoPrev(); };
+}
+
+function sweepClear(){
+  $('loc').value=''; $('note').value=''; $('photo').value=''; photoData=null; showPhotoPrev();
+  editIdx=-1; $('add').textContent='Add finding'; $('cancel').style.display='none';
+}
+$('cancel').onclick=sweepClear;
+
+async function getGeo(){
+  if(!$('geo').checked || !navigator.geolocation) return null;
+  return new Promise(res=>navigator.geolocation.getCurrentPosition(
+    p=>res(p.coords.latitude.toFixed(5)+', '+p.coords.longitude.toFixed(5)), ()=>res(null), {timeout:6000}));
+}
+$('add').onclick=async()=>{
+  const loc=$('loc').value.trim();
+  if(!loc){ $('loc').focus(); return; }
+  const def=FEATURES[ftypeSel.value];
+  const attrs=currentAttrs();
+  const r=def.score(attrs);
+  const geo = editIdx>=0 ? (finds[editIdx].geo||null) : await getGeo();
+  const rec={
+    type:def.label, loc, item:r.item, attrs,
+    posture:$('sev').value, fix:$('fix').value.trim(),
+    note:$('note').value.trim(), photo:photoData, geo,
+    time: editIdx>=0 ? finds[editIdx].time : new Date().toISOString()
+  };
+  if(editIdx>=0) finds[editIdx]=rec; else finds.push(rec);
+  store.set(KEY,finds);
+  sweepClear();
+  render();
+  document.querySelector('.tab[data-tab="findings"]').click();
+};
+
+function render(){
+  const sum=$('summary'), body=$('list');
+  if(!finds.length){ sum.innerHTML=''; body.innerHTML='<div class="empty">No findings yet. Inspect a feature under Survey.</div>'; return; }
+  const c={crit:0,weak:0,strong:0,info:0}; finds.forEach(f=>c[f.posture]++);
+  sum.innerHTML=['crit','weak','strong','info'].map((p,i)=>
+    '<span class="'+POSTURE_PILL[p]+'"'+(i?' style="margin-left:6px;"':'')+'>'+POSTURE_LABEL[p]+' '+c[p]+'</span>').join('');
+  const sorted=finds.map((f,i)=>({f,i})).sort((a,b)=>SEV_ORDER[a.f.posture]-SEV_ORDER[b.f.posture]);
+  let h='<table class="tbl"><thead><tr><th>Location</th><th>Type</th><th>Feature</th><th>Severity</th><th>Recommendation</th><th></th></tr></thead><tbody>';
+  sorted.forEach(({f,i})=>{
+    h+='<tr><td>'+esc(f.loc)+
+       (f.photo?'<br><img src="'+f.photo+'" style="max-width:90px;border:1px solid var(--line);border-radius:2px;margin-top:4px;">':'')+
+       (f.geo?'<br><span style="color:var(--faint);font-size:12px;" class="mono">'+esc(f.geo)+'</span>':'')+
+       (f.note?'<br><span style="color:var(--faint);font-size:12px;">'+esc(f.note)+'</span>':'')+'</td>'+
+       '<td>'+esc(f.type)+'</td><td>'+esc(f.item)+'</td>'+
+       '<td><span class="'+POSTURE_PILL[f.posture]+'">'+POSTURE_LABEL[f.posture]+'</span></td>'+
+       '<td style="color:var(--mute);">'+esc(f.fix)+'</td>'+
+       '<td style="white-space:nowrap;"><button class="btn ghost sm" data-edit="'+i+'">Edit</button> <button class="btn ghost sm" data-del="'+i+'">Remove</button></td></tr>';
+  });
+  body.innerHTML=h+'</tbody></table>';
+  body.querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click',()=>{ finds.splice(+b.dataset.del,1); store.set(KEY,finds); if(editIdx===+b.dataset.del) sweepClear(); render(); }));
+  body.querySelectorAll('[data-edit]').forEach(b=>b.addEventListener('click',()=>{
+    editIdx=+b.dataset.edit; const f=finds[editIdx];
+    const tkey=Object.keys(FEATURES).find(k=>FEATURES[k].label===f.type);
+    if(tkey){ ftypeSel.value=tkey; buildFields(); }
+    Object.entries(f.attrs||{}).forEach(([k,v])=>{ const s=$('dyn').querySelector('[data-k="'+k+'"]'); if(s) s.value=v; });
+    recompute();
+    $('loc').value=f.loc||''; $('note').value=f.note||''; $('sev').value=f.posture; $('fix').value=f.fix||'';
+    photoData=f.photo||null; showPhotoPrev();
+    $('add').textContent='Update finding'; $('cancel').style.display='inline-block';
+    document.querySelector('.tab[data-tab="survey"]').click();
+    $('loc').scrollIntoView({behavior:'smooth',block:'center'});
+  }));
+}
+$('export').onclick=()=>{ const b=new Blob([JSON.stringify(finds,null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='sweep-findings.json'; a.click(); URL.revokeObjectURL(a.href); };
+$('clear').onclick=()=>{ if(confirm('Clear all findings?')){ finds=[]; store.set(KEY,finds); render(); } };
+render();
+
+/* ---------- tabs ---------- */
+const tabs=document.querySelectorAll('.tab');
+tabs.forEach(t=>t.addEventListener('click',()=>{
+  tabs.forEach(x=>x.setAttribute('aria-selected',x===t?'true':'false'));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active',p.id===t.dataset.tab));
+}));
+</script>
+</body>
+</html>

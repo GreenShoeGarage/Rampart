@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PICKET - Rampart Field Kit</title>
+<meta name="description" content="Phone as field tripwire. Watches motion, vibration, and sound, logs the trip, runs offline.">
+<link rel="stylesheet" href="theme.css">
+<style>
+  .stand { display:grid; grid-template-columns: 1.1fr 1fr; gap:18px; align-items:stretch; }
+  @media (max-width:760px){ .stand { grid-template-columns:1fr; } }
+  .armbox { text-align:center; display:flex; flex-direction:column; justify-content:center; gap:14px; }
+  .arm-btn {
+    font-family:var(--display); font-weight:800; font-size:34px; letter-spacing:0.12em; text-transform:uppercase;
+    padding:26px; border-radius:4px; cursor:pointer; border:2px solid var(--olive); color:var(--olive);
+    background:rgba(132,149,95,0.08); transition:all .15s ease;
+  }
+  .arm-btn:hover { background:rgba(132,149,95,0.16); }
+  .arm-btn.armed { border-color:var(--rust); color:var(--rust); background:rgba(194,91,58,0.10); }
+  .arm-btn.tripped { border-color:var(--crimson); color:var(--crimson); background:rgba(187,69,58,0.18); }
+  .statline { font-family:var(--mono); font-size:12px; letter-spacing:0.18em; text-transform:uppercase; color:var(--mute); }
+  .meter { height:10px; background:var(--ink); border:1px solid var(--line-2); border-radius:2px; overflow:hidden; margin-top:7px; }
+  .meter > i { display:block; height:100%; width:0%; background:var(--steel); transition:width .08s linear; }
+  .meter.hot > i { background:var(--rust); }
+  .sensor { display:flex; gap:14px; align-items:flex-start; }
+  .sensor .body { flex:1; }
+  .switch { display:flex; align-items:center; gap:8px; font-family:var(--mono); font-size:11px; letter-spacing:0.14em; text-transform:uppercase; color:var(--mute); cursor:pointer; }
+  .switch input { width:auto; }
+  .sens-row { display:flex; align-items:center; gap:12px; margin-top:10px; }
+  .sens-row input[type=range] { flex:1; }
+  #monitor { width:120px; height:90px; background:#000; border:1px solid var(--line-2); border-radius:2px; object-fit:cover; }
+  .flash { position:fixed; inset:0; background:var(--crimson); opacity:0; pointer-events:none; z-index:50; }
+  .flash.go { animation:trip .5s ease 2; }
+  @keyframes trip { 0%,100%{opacity:0;} 50%{opacity:0.5;} }
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#15191c">
+<link rel="apple-touch-icon" href="icon-192.png">
+<script src="gate.js"></script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</head>
+<body>
+<div class="band"><span>Authorized assessment use only</span></div>
+<div class="flash" id="flash"></div>
+
+<header class="masthead">
+  <div class="wrap">
+    <div class="crumbs"><a href="index.html">Rampart</a><span class="sep">/</span><span>Mod 03</span><span class="sep">/</span><span>Picket</span></div>
+    <div class="kit-title"><span class="name">Picket</span><span class="no">033 · 03</span></div>
+    <div class="kit-sub">Field Tripwire</div>
+    <p class="kit-lede">Prop the device, arm the sensors, and walk away. Picket watches for motion in view, a knock to the device, or a sound over threshold, then logs the trip and alarms. Nothing is recorded and nothing leaves the device.</p>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="section">
+    <div class="card">
+      <div class="stand">
+        <div class="armbox">
+          <button class="arm-btn" id="arm">Arm</button>
+          <div class="statline" id="stat">Disarmed</div>
+          <div class="sens-row" style="justify-content:center;">
+            <label class="switch" style="text-transform:none;letter-spacing:0.06em;">Arm delay
+              <select id="delay" style="width:auto;"><option value="0">none</option><option value="5">5 s</option><option value="10" selected>10 s</option><option value="30">30 s</option></select>
+            </label>
+          </div>
+        </div>
+        <div>
+          <video id="monitor" playsinline muted style="display:none;"></video>
+          <div class="note" style="margin-top:14px;">Camera and microphone access is requested only for the sensors you switch on, and only while armed. Picket measures levels. It never stores audio or video.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Sensors</h3>
+
+      <div class="sensor" style="margin-top:14px;">
+        <label class="switch"><input type="checkbox" id="s-motion"> Motion</label>
+        <div class="body">
+          <div style="font-size:13.5px;color:var(--mute);">Camera frame change. Watches a doorway or approach.</div>
+          <div class="meter" id="m-motion"><i></i></div>
+          <div class="sens-row"><span class="statline">Sensitivity</span><input type="range" id="sens-motion" min="1" max="100" value="55"></div>
+        </div>
+      </div>
+
+      <div class="sensor" style="margin-top:18px;border-top:1px solid var(--line);padding-top:18px;">
+        <label class="switch"><input type="checkbox" id="s-vib"> Vibration</label>
+        <div class="body">
+          <div style="font-size:13.5px;color:var(--mute);">Accelerometer. Trips if the device is bumped or moved.</div>
+          <div class="meter" id="m-vib"><i></i></div>
+          <div class="sens-row"><span class="statline">Sensitivity</span><input type="range" id="sens-vib" min="1" max="100" value="55"></div>
+        </div>
+      </div>
+
+      <div class="sensor" style="margin-top:18px;border-top:1px solid var(--line);padding-top:18px;">
+        <label class="switch"><input type="checkbox" id="s-sound"> Sound</label>
+        <div class="body">
+          <div style="font-size:13.5px;color:var(--mute);">Microphone level. Trips on a sound over threshold.</div>
+          <div class="meter" id="m-sound"><i></i></div>
+          <div class="sens-row"><span class="statline">Sensitivity</span><input type="range" id="sens-sound" min="1" max="100" value="55"></div>
+        </div>
+      </div>
+
+      <label class="switch" style="margin-top:18px;border-top:1px solid var(--line);padding-top:16px;"><input type="checkbox" id="s-alarm" checked> Audible alarm on trip</label>
+    </div>
+
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+        <h3 style="margin:0;">Trip log</h3>
+        <div class="row-actions" style="margin:0;">
+          <button class="btn ghost sm" id="export">Export JSON</button>
+          <button class="btn ghost sm" id="clear">Clear</button>
+        </div>
+      </div>
+      <div id="log" style="margin-top:14px;"></div>
+    </div>
+  </section>
+</main>
+
+<footer class="wrap foot">
+  <span><a href="index.html" style="color:var(--mute);">&larr; Back to kit</a></span>
+  <span>Picket · Mod 03</span>
+</footer>
+
+<script>
+const store = {
+  get(k,d){ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):d; }catch(e){ return d; } },
+  set(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){} }
+};
+const KEY='rampart.picket.log';
+let log = store.get(KEY, []);
+const $ = id => document.getElementById(id);
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+let state = 'idle';            // idle | arming | armed | tripped
+let stream = null, audioStream = null;
+let audioCtx, analyser, freqData;
+let video, mcanvas, mctx, prevFrame = null;
+let lastVib = null, vibAvg = 0;
+let raf = null, cooldownUntil = 0, armTimer = null;
+
+const level = { motion:0, vib:0, sound:0 };
+
+/* ---------- log render ---------- */
+function renderLog(){
+  const el = $('log');
+  if(!log.length){ el.innerHTML='<div class="empty">No trips recorded.</div>'; return; }
+  let h='<table class="tbl"><thead><tr><th class="mono">Time</th><th>Sensor</th><th class="mono">Level</th></tr></thead><tbody>';
+  log.slice().reverse().forEach(e=>{
+    h+='<tr><td class="mono">'+esc(e.t)+'</td><td>'+esc(e.s)+'</td><td class="mono">'+esc(e.l)+'</td></tr>';
+  });
+  el.innerHTML=h+'</tbody></table>';
+}
+$('export').onclick=()=>{ const b=new Blob([JSON.stringify(log,null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='picket-log.json'; a.click(); URL.revokeObjectURL(a.href); };
+$('clear').onclick=()=>{ if(confirm('Clear the trip log?')){ log=[]; store.set(KEY,log); renderLog(); } };
+renderLog();
+
+/* ---------- alarm ---------- */
+function beep(){
+  if(!$('s-alarm').checked) return;
+  try{
+    const c = audioCtx || new (window.AudioContext||window.webkitAudioContext)();
+    const o=c.createOscillator(), g=c.createGain();
+    o.type='square'; o.frequency.value=880; g.gain.value=0.0001;
+    o.connect(g); g.connect(c.destination); o.start();
+    g.gain.exponentialRampToValueAtTime(0.25, c.currentTime+0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, c.currentTime+0.6);
+    o.stop(c.currentTime+0.62);
+  }catch(e){}
+}
+function flash(){ const f=$('flash'); f.classList.remove('go'); void f.offsetWidth; f.classList.add('go'); }
+
+/* ---------- trip ---------- */
+function trip(sensor, lvl){
+  if(state!=='armed' || Date.now()<cooldownUntil) return;
+  state='tripped'; cooldownUntil = Date.now()+3000;
+  const e = { t:new Date().toLocaleTimeString(), s:sensor, l:lvl };
+  log.push(e); store.set(KEY,log); renderLog();
+  beep(); flash();
+  $('arm').classList.add('tripped'); $('arm').textContent='Tripped';
+  $('stat').textContent='Trip · '+sensor+' · re-arming';
+  setTimeout(()=>{ if(state==='tripped'){ state='armed'; $('arm').classList.remove('tripped'); $('arm').classList.add('armed'); $('arm').textContent='Disarm'; $('stat').textContent='Armed · watching'; } }, 3000);
+}
+
+/* ---------- sensor loops ---------- */
+async function startMotion(){
+  stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:'environment' } });
+  video = $('monitor'); video.srcObject=stream; video.style.display='block'; await video.play();
+  mcanvas=document.createElement('canvas'); mcanvas.width=64; mcanvas.height=48; mctx=mcanvas.getContext('2d',{willReadFrequently:true}); prevFrame=null;
+}
+async function startSound(){
+  audioStream = await navigator.mediaDevices.getUserMedia({ audio:true });
+  audioCtx = audioCtx || new (window.AudioContext||window.webkitAudioContext)();
+  const src = audioCtx.createMediaStreamSource(audioStream);
+  analyser = audioCtx.createAnalyser(); analyser.fftSize=512; freqData=new Uint8Array(analyser.fftSize);
+  src.connect(analyser);
+}
+async function startVib(){
+  if(typeof DeviceMotionEvent!=='undefined' && typeof DeviceMotionEvent.requestPermission==='function'){
+    const p = await DeviceMotionEvent.requestPermission(); if(p!=='granted') throw new Error('motion denied');
+  }
+  window.addEventListener('devicemotion', onMotionEvent);
+}
+function onMotionEvent(ev){
+  const a = ev.accelerationIncludingGravity || ev.acceleration; if(!a) return;
+  const mag = Math.sqrt((a.x||0)**2+(a.y||0)**2+(a.z||0)**2);
+  if(lastVib==null) lastVib=mag;
+  const delta = Math.abs(mag-lastVib); lastVib=mag;
+  vibAvg = vibAvg*0.8 + delta*0.2;
+  level.vib = Math.min(100, vibAvg*22);
+}
+
+function loop(){
+  // motion
+  if($('s-motion').checked && video && video.readyState>=2){
+    mctx.drawImage(video,0,0,64,48);
+    const cur = mctx.getImageData(0,0,64,48).data;
+    if(prevFrame){
+      let diff=0; for(let i=0;i<cur.length;i+=4){ diff += Math.abs(cur[i]-prevFrame[i]); }
+      level.motion = Math.min(100, (diff/(64*48))/2);
+    }
+    prevFrame = cur;
+  } else level.motion = 0;
+  // sound
+  if($('s-sound').checked && analyser){
+    analyser.getByteTimeDomainData(freqData);
+    let sum=0; for(let i=0;i<freqData.length;i++){ const v=(freqData[i]-128)/128; sum+=v*v; }
+    level.sound = Math.min(100, Math.sqrt(sum/freqData.length)*260);
+  } else level.sound = 0;
+
+  // meters + thresholds
+  checkSensor('motion', $('sens-motion'), $('m-motion'));
+  checkSensor('vib',    $('sens-vib'),    $('m-vib'));
+  checkSensor('sound',  $('sens-sound'),  $('m-sound'));
+
+  raf = requestAnimationFrame(loop);
+}
+function checkSensor(name, sensInput, meterEl){
+  const on = $('s-'+(name==='vib'?'vib':name)).checked;
+  const v = on ? level[name] : 0;
+  const bar = meterEl.querySelector('i'); bar.style.width = v+'%';
+  // threshold: higher sensitivity -> lower trip point
+  const thresh = 100 - (+sensInput.value);
+  meterEl.classList.toggle('hot', v>=thresh && on);
+  if(on && state==='armed' && v>=thresh) trip(name==='vib'?'Vibration':(name[0].toUpperCase()+name.slice(1)), Math.round(v));
+}
+
+/* ---------- arm / disarm ---------- */
+async function arm(){
+  const wantMotion=$('s-motion').checked, wantSound=$('s-sound').checked, wantVib=$('s-vib').checked;
+  if(!wantMotion && !wantSound && !wantVib){ $('stat').textContent='Enable at least one sensor'; return; }
+  $('stat').textContent='Requesting sensors';
+  try{
+    if(wantMotion) await startMotion();
+    if(wantSound)  await startSound();
+    if(wantVib)    await startVib();
+  }catch(e){
+    $('stat').textContent='Sensor access denied or unavailable';
+    teardown(); return;
+  }
+  if(!raf) loop();
+  const d = +$('delay').value;
+  state='arming'; $('arm').textContent='Cancel'; $('arm').classList.add('armed');
+  if(d>0){
+    let left=d; $('stat').textContent='Arming in '+left+' s';
+    armTimer=setInterval(()=>{ left--; if(left<=0){ clearInterval(armTimer); goArmed(); } else $('stat').textContent='Arming in '+left+' s'; },1000);
+  } else goArmed();
+}
+function goArmed(){ state='armed'; cooldownUntil=Date.now()+800; $('arm').textContent='Disarm'; $('stat').textContent='Armed · watching'; }
+function teardown(){
+  if(raf){ cancelAnimationFrame(raf); raf=null; }
+  if(armTimer){ clearInterval(armTimer); armTimer=null; }
+  if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; }
+  if(audioStream){ audioStream.getTracks().forEach(t=>t.stop()); audioStream=null; }
+  window.removeEventListener('devicemotion', onMotionEvent);
+  if(video){ video.style.display='none'; video.srcObject=null; }
+  prevFrame=null; analyser=null; lastVib=null; vibAvg=0;
+  Object.keys(level).forEach(k=>level[k]=0);
+  document.querySelectorAll('.meter i').forEach(i=>i.style.width='0%');
+  document.querySelectorAll('.meter').forEach(m=>m.classList.remove('hot'));
+}
+function disarm(){ state='idle'; teardown(); $('arm').className='arm-btn'; $('arm').textContent='Arm'; $('stat').textContent='Disarmed'; }
+
+$('arm').onclick = ()=>{ (state==='idle') ? arm() : disarm(); };
+</script>
+</body>
+</html>

@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FOOTPRINT - Rampart Field Kit</title>
+<meta name="description" content="Study a site from public imagery and assess what an organization leaks publicly, with remediation.">
+<link rel="stylesheet" href="theme.css">
+<style>
+  .linkrow { display:flex; gap:10px; flex-wrap:wrap; margin-top:6px; }
+  .maplink {
+    font-family:var(--mono); font-size:12px; letter-spacing:0.1em; text-transform:uppercase;
+    border:1px solid var(--line-2); border-radius:2px; padding:9px 14px; color:var(--cream);
+  }
+  .maplink:hover { border-color:var(--rust); color:var(--rust); }
+  .maplink[aria-disabled="true"] { opacity:.4; pointer-events:none; }
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#15191c">
+<link rel="apple-touch-icon" href="icon-192.png">
+<script src="gate.js"></script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</head>
+<body>
+<div class="band"><span>Authorized assessment use only</span></div>
+
+<header class="masthead">
+  <div class="wrap">
+    <div class="crumbs"><a href="index.html">Rampart</a><span class="sep">/</span><span>Mod 08</span><span class="sep">/</span><span>Footprint</span></div>
+    <div class="kit-title"><span class="name">Footprint</span><span class="no">033 · 08</span></div>
+    <div class="kit-sub">Public Exposure Assessment</div>
+    <p class="kit-lede">Study the approach from public imagery and catalog what the organization leaks to the open web, then write the remediation. Footprint assesses exposure so the client can reduce it. It does not profile people or build files on individuals.</p>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" aria-selected="true"  data-tab="approach">Approach</button>
+    <button class="tab" role="tab" aria-selected="false" data-tab="exposure">Exposure</button>
+    <button class="tab" role="tab" aria-selected="false" data-tab="report">Findings</button>
+  </div>
+
+  <!-- APPROACH -->
+  <section class="panel active" id="approach">
+    <div class="card">
+      <h3>The approach</h3>
+      <p style="color:var(--mute);font-size:15px;">Enter the site address to open it in public mapping. Study the exterior, entry points, fencing, parking, and loading from imagery before you ever go. Satellite and Street View both live inside Google Maps.</p>
+      <label class="fld"><span>Site address</span><input id="addr" placeholder="e.g. 1200 Riverside Parkway, Cumberland MD"></label>
+      <div class="linkrow" id="links"></div>
+    </div>
+    <div class="card">
+      <h3>Record an approach observation</h3>
+      <p style="color:var(--mute);font-size:15px;">Note what the imagery shows about the physical approach. These log as findings and flow into the report and Sweep.</p>
+      <div class="two-col">
+        <label class="fld"><span>Aspect</span>
+          <select id="ap-aspect">
+            <option>Entry point</option><option>Perimeter / fencing</option><option>Parking</option>
+            <option>Loading dock</option><option>Lighting</option><option>Visible camera</option>
+            <option>Signage</option><option>Other approach note</option>
+          </select>
+        </label>
+        <label class="fld"><span>Concern</span>
+          <select id="ap-sev"><option value="info">Note only</option><option value="weak">Weak</option><option value="crit">Critical</option></select>
+        </label>
+      </div>
+      <label class="fld"><span>Observation</span><input id="ap-note" placeholder="What the imagery shows"></label>
+      <div class="row-actions">
+        <button class="btn" id="ap-add">Add observation</button>
+        <button class="btn ghost" id="ap-cancel" style="display:none;">Cancel edit</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- EXPOSURE -->
+  <section class="panel" id="exposure">
+    <div class="card">
+      <h3>Public exposure register</h3>
+      <p style="color:var(--mute);font-size:15px;">Catalog the categories where the organization leaks to the open web. Pick the exposure, note where you saw it, and the instrument fills the remediation. This records categories and fixes, not the contents of anyone's account.</p>
+      <label class="fld"><span>Exposure category</span><select id="ex-cat"></select></label>
+      <div class="suggest" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;border:1px dashed var(--line-2);border-radius:var(--rad);padding:12px 14px;margin:0 0 16px;">
+        <span style="font-family:var(--mono);font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:var(--steel);">Remediation</span>
+        <span id="ex-fix" style="color:var(--mute);font-size:13.5px;flex:1;min-width:200px;"></span>
+      </div>
+      <div class="two-col">
+        <label class="fld"><span>Where seen (public source)</span><input id="ex-loc" placeholder="e.g. Public careers page, conference talk"></label>
+        <label class="fld"><span>Severity (override allowed)</span>
+          <select id="ex-sev"><option value="crit">Critical</option><option value="weak">Weak</option><option value="info">Info</option></select>
+        </label>
+      </div>
+      <label class="fld"><span>Note (optional)</span><input id="ex-note" placeholder="Context, what is exposed in general terms"></label>
+      <div class="row-actions">
+        <button class="btn" id="ex-add">Add to findings</button>
+        <button class="btn ghost" id="ex-cancel" style="display:none;">Cancel edit</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- REPORT -->
+  <section class="panel" id="report">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+        <h3 style="margin:0;">Findings</h3>
+        <div class="row-actions" style="margin:0;">
+          <button class="btn ghost sm" id="r-copy">Copy report</button>
+          <button class="btn ghost sm" id="r-export">Export JSON</button>
+          <button class="btn ghost sm" id="r-clear">Clear</button>
+        </div>
+      </div>
+      <div id="summary" style="margin:14px 0;"></div>
+      <div id="findings"></div>
+    </div>
+  </section>
+</main>
+
+<footer class="wrap foot">
+  <span><a href="index.html" style="color:var(--mute);">&larr; Back to kit</a></span>
+  <span>Footprint · Mod 08</span>
+</footer>
+
+<script>
+const $ = id => document.getElementById(id);
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+const store = {
+  get(k,d){ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):d; }catch(e){ return d; } },
+  set(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){} }
+};
+const POSTURE_LABEL={crit:'Critical',weak:'Weak',strong:'Strong',info:'Info'};
+const POSTURE_PILL ={crit:'pill crit',weak:'pill weak',strong:'pill strong',info:'pill info'};
+const SEV_ORDER={crit:0,weak:1,strong:2,info:3};
+
+/* ---------- exposure catalog (defensive: categories + remediation) ---------- */
+const EXPOSURE=[
+  { name:'Job ad names security or badge system', posture:'weak', fix:'Remove specific access control, badge, or vendor names from public postings. Describe requirements generically.' },
+  { name:'Job ad names internal tooling or network', posture:'weak', fix:'Generalize technology references in public job ads so they do not map the internal stack.' },
+  { name:'Public document metadata leak', posture:'weak', fix:'Scrub author, software, and path metadata from documents before publishing them publicly.' },
+  { name:'Employees posting credential or badge photos', posture:'weak', fix:'Issue a social media policy and run awareness training on sharing badge and credential photos.' },
+  { name:'Geotagged posts expose internal layout', posture:'weak', fix:'Set a policy on interior photography and geotagging in controlled and secure areas.' },
+  { name:'Vendor or contractor relationship disclosed', posture:'info', fix:'Train reception and staff to verify vendor identity and appointments. Minimize public disclosure of service providers.' },
+  { name:'Detailed public staff directory', posture:'info', fix:'Limit public directory detail to what business need requires.' },
+  { name:'Press or event coverage reveals site detail', posture:'info', fix:'Review media materials for sensitive interior, security, or process detail before release.' },
+  { name:'Public network, DNS, or certificate footprint', posture:'info', fix:'Review the external infrastructure footprint and cross reference the cyber assessment.' },
+  { name:'Signage or uniforms visible in public photos', posture:'info', fix:'Raise staff awareness of impersonation vectors and reinforce visitor verification.' }
+];
+
+/* ---------- approach: address + map deep links ---------- */
+const A_KEY='rampart.footprint.address';
+$('addr').value = store.get(A_KEY,'') || '';
+function buildLinks(){
+  const a=$('addr').value.trim();
+  const enc=encodeURIComponent(a);
+  const links=[
+    ['Google Maps', a?('https://www.google.com/maps/search/?api=1&query='+enc):''],
+    ['Google Earth', a?('https://earth.google.com/web/search/'+enc):''],
+    ['Bing aerial', a?('https://www.bing.com/maps?q='+enc+'&style=h'):''],
+    ['OpenStreetMap', a?('https://www.openstreetmap.org/search?query='+enc):'']
+  ];
+  $('links').innerHTML = links.map(([label,url])=>
+    url ? '<a class="maplink" href="'+url+'" target="_blank" rel="noopener">'+esc(label)+'</a>'
+        : '<span class="maplink" aria-disabled="true">'+esc(label)+'</span>'
+  ).join('');
+}
+$('addr').addEventListener('input',()=>{ store.set(A_KEY,$('addr').value); buildLinks(); });
+buildLinks();
+
+/* ---------- findings store ---------- */
+const KEY='rampart.footprint.findings';
+let finds=store.get(KEY,[]);
+let editIdx=-1;
+
+/* ---------- approach observations ---------- */
+function apClear(){ $('ap-note').value=''; $('ap-aspect').selectedIndex=0; $('ap-sev').selectedIndex=0; editIdx=-1; $('ap-add').textContent='Add observation'; $('ap-cancel').style.display='none'; }
+$('ap-cancel').onclick=apClear;
+$('ap-add').onclick=()=>{
+  const note=$('ap-note').value.trim();
+  const aspect=$('ap-aspect').value;
+  if(!note){ $('ap-note').focus(); return; }
+  const addr=$('addr').value.trim();
+  const rec={ type:'Site approach', loc: addr||aspect, item:aspect, posture:$('ap-sev').value,
+    fix:'', note, time:new Date().toISOString() };
+  if(editIdx>=0 && finds[editIdx] && finds[editIdx].type==='Site approach') finds[editIdx]=rec; else finds.push(rec);
+  store.set(KEY,finds); apClear(); render();
+  document.querySelector('.tab[data-tab="report"]').click();
+};
+
+/* ---------- exposure ---------- */
+$('ex-cat').innerHTML=EXPOSURE.map((e,i)=>'<option value="'+i+'">'+esc(e.name)+'</option>').join('');
+function exPreview(){ const e=EXPOSURE[+$('ex-cat').value]; $('ex-fix').textContent=e.fix; $('ex-sev').value=e.posture; }
+$('ex-cat').addEventListener('change',exPreview); exPreview();
+function exClear(){ $('ex-loc').value=''; $('ex-note').value=''; $('ex-cat').selectedIndex=0; exPreview(); editIdx=-1; $('ex-add').textContent='Add to findings'; $('ex-cancel').style.display='none'; }
+$('ex-cancel').onclick=exClear;
+$('ex-add').onclick=()=>{
+  const e=EXPOSURE[+$('ex-cat').value];
+  const rec={ type:'Information exposure', loc: $('ex-loc').value.trim()||'(public source)', item:e.name,
+    posture:$('ex-sev').value, fix:e.fix, note:$('ex-note').value.trim(), time:new Date().toISOString() };
+  if(editIdx>=0 && finds[editIdx] && finds[editIdx].type==='Information exposure') finds[editIdx]=rec; else finds.push(rec);
+  store.set(KEY,finds); exClear(); render();
+  document.querySelector('.tab[data-tab="report"]').click();
+};
+
+/* ---------- findings render ---------- */
+function render(){
+  const sum=$('summary'), body=$('findings');
+  if(!finds.length){ sum.innerHTML=''; body.innerHTML='<div class="empty">No findings yet. Use Approach or Exposure.</div>'; return; }
+  const c={crit:0,weak:0,strong:0,info:0}; finds.forEach(f=>c[f.posture]++);
+  sum.innerHTML=['crit','weak','strong','info'].map((p,i)=>
+    '<span class="'+POSTURE_PILL[p]+'"'+(i?' style="margin-left:6px;"':'')+'>'+POSTURE_LABEL[p]+' '+c[p]+'</span>').join('');
+  const sorted=finds.map((f,i)=>({f,i})).sort((a,b)=>SEV_ORDER[a.f.posture]-SEV_ORDER[b.f.posture]);
+  let h='<table class="tbl"><thead><tr><th>Source</th><th>Type</th><th>Item</th><th>Severity</th><th>Recommendation</th><th></th></tr></thead><tbody>';
+  sorted.forEach(({f,i})=>{
+    h+='<tr><td>'+esc(f.loc)+(f.note?'<br><span style="color:var(--faint);font-size:12px;">'+esc(f.note)+'</span>':'')+'</td>'+
+       '<td style="font-size:12.5px;color:var(--mute);">'+esc(f.type)+'</td>'+
+       '<td>'+esc(f.item)+'</td>'+
+       '<td><span class="'+POSTURE_PILL[f.posture]+'">'+POSTURE_LABEL[f.posture]+'</span></td>'+
+       '<td style="color:var(--mute);">'+esc(f.fix||'-')+'</td>'+
+       '<td style="white-space:nowrap;"><button class="btn ghost sm" data-edit="'+i+'">Edit</button> <button class="btn ghost sm" data-del="'+i+'">Remove</button></td></tr>';
+  });
+  body.innerHTML=h+'</tbody></table>';
+  body.querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click',()=>{ finds.splice(+b.dataset.del,1); store.set(KEY,finds); render(); }));
+  body.querySelectorAll('[data-edit]').forEach(b=>b.addEventListener('click',()=>{
+    editIdx=+b.dataset.edit; const f=finds[editIdx];
+    if(f.type==='Information exposure'){
+      const ci=EXPOSURE.findIndex(e=>e.name===f.item); if(ci>=0) $('ex-cat').value=ci; exPreview();
+      $('ex-loc').value=f.loc==='(public source)'?'':f.loc; $('ex-note').value=f.note||''; $('ex-sev').value=f.posture;
+      $('ex-add').textContent='Update finding'; $('ex-cancel').style.display='inline-block';
+      document.querySelector('.tab[data-tab="exposure"]').click();
+    } else {
+      const ai=$('ap-aspect'); [...ai.options].forEach(o=>{ if(o.value===f.item) ai.value=f.item; });
+      $('ap-note').value=f.note||''; $('ap-sev').value=f.posture;
+      $('ap-add').textContent='Update observation'; $('ap-cancel').style.display='inline-block';
+      document.querySelector('.tab[data-tab="approach"]').click();
+    }
+  }));
+}
+function reportText(){
+  const L=['RAMPART / FOOTPRINT EXPOSURE ASSESSMENT','Generated '+new Date().toISOString().slice(0,10)];
+  const a=$('addr').value.trim(); if(a) L.push('Site: '+a);
+  L.push('');
+  ['crit','weak','strong','info'].forEach(p=>{
+    const rows=finds.filter(f=>f.posture===p); if(!rows.length) return;
+    L.push('['+POSTURE_LABEL[p].toUpperCase()+']');
+    rows.forEach(f=>{ L.push('  '+f.item+' ('+f.type+')'); L.push('    Source: '+f.loc); if(f.note) L.push('    Note: '+f.note); if(f.fix) L.push('    Recommendation: '+f.fix); L.push(''); });
+  });
+  return L.join('\n');
+}
+$('r-copy').onclick=async()=>{ if(!finds.length) return; try{ await navigator.clipboard.writeText(reportText()); alert('Report copied to clipboard.'); }catch(e){ alert('Copy failed. Use Export JSON instead.'); } };
+$('r-export').onclick=()=>{ const b=new Blob([JSON.stringify(finds,null,2)],{type:'application/json'}); const x=document.createElement('a'); x.href=URL.createObjectURL(b); x.download='footprint-findings.json'; x.click(); URL.revokeObjectURL(x.href); };
+$('r-clear').onclick=()=>{ if(confirm('Clear all findings?')){ finds=[]; store.set(KEY,finds); render(); } };
+render();
+
+/* ---------- tabs ---------- */
+const tabs=document.querySelectorAll('.tab');
+tabs.forEach(t=>t.addEventListener('click',()=>{
+  tabs.forEach(x=>x.setAttribute('aria-selected',x===t?'true':'false'));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active',p.id===t.dataset.tab));
+}));
+</script>
+</body>
+</html>

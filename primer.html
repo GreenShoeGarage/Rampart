@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PRIMER - Rampart Field Kit</title>
+<meta name="description" content="Physical attack chain reference for defenders: the vector, the exposure, and the fix at each phase.">
+<link rel="stylesheet" href="theme.css">
+<style>
+  .acc { border:1px solid var(--line); border-radius:var(--rad); overflow:hidden; margin-bottom:12px; background:var(--panel); }
+  .acc > button { width:100%; text-align:left; background:none; border:0; cursor:pointer; padding:18px 20px;
+    display:flex; align-items:center; gap:14px; color:var(--cream); }
+  .acc > button:hover { background:rgba(255,255,255,0.02); }
+  .acc .ph-no { font-family:var(--mono); font-size:12px; color:var(--rust); letter-spacing:0.12em; }
+  .acc .ph-name { font-family:var(--display); font-weight:700; font-size:21px; letter-spacing:0.04em; text-transform:uppercase; flex:1; }
+  .acc .chev { font-family:var(--mono); color:var(--mute); transition:transform .18s ease; }
+  .acc.open .chev { transform:rotate(90deg); color:var(--rust); }
+  .acc .body { display:none; padding:0 20px 22px; }
+  .acc.open .body { display:block; animation:fade .22s ease both; }
+  .lab { font-family:var(--mono); font-size:11px; letter-spacing:0.18em; text-transform:uppercase; color:var(--steel); margin:18px 0 8px; }
+  .vector { color:var(--mute); font-size:14.5px; line-height:1.65; }
+  .ilist { list-style:none; padding:0; margin:0; }
+  .ilist li { padding:7px 0 7px 18px; border-bottom:1px solid var(--line); position:relative; font-size:14px; color:var(--cream); }
+  .ilist li::before { content:"\\2013"; position:absolute; left:0; color:var(--rust); }
+  .ilist.fix li::before { content:"\\2192"; color:var(--olive); }
+  .modtag { display:inline-block; font-family:var(--mono); font-size:10.5px; letter-spacing:0.12em; text-transform:uppercase;
+    color:var(--steel); border:1px solid var(--line-2); border-radius:2px; padding:2px 8px; margin-top:12px; }
+  .eco { border-left:3px solid var(--steel); background:rgba(109,138,152,0.07); padding:11px 15px; margin-top:16px; font-size:13.5px; color:var(--mute); border-radius:0 2px 2px 0; }
+  @keyframes fade { from{opacity:0;transform:translateY(4px);} to{opacity:1;transform:none;} }
+</style>
+<link rel="stylesheet" href="theme.css">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#15191c">
+<link rel="apple-touch-icon" href="icon-192.png">
+<script src="gate.js"></script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</head>
+<body>
+<div class="band"><span>Authorized assessment use only</span></div>
+
+<header class="masthead">
+  <div class="wrap">
+    <div class="crumbs"><a href="index.html">Rampart</a><span class="sep">/</span><span>Mod 11</span><span class="sep">/</span><span>Primer</span></div>
+    <div class="kit-title"><span class="name">Primer</span><span class="no">033 · 11</span></div>
+    <div class="kit-sub">Attack Chain Reference</div>
+    <p class="kit-lede">The physical attack chain, phase by phase, written for the defender. For each step: what the vector is, what makes an organization exposed to it, and how to remediate. This explains the threat so you can close it. It is not an execution manual.</p>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="section">
+    <div id="chain"></div>
+  </section>
+</main>
+
+<footer class="wrap foot">
+  <span><a href="index.html" style="color:var(--mute);">&larr; Back to kit</a></span>
+  <span>Primer · Mod 11</span>
+</footer>
+
+<script>
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+const PHASES=[
+  {
+    name:'Reconnaissance & OSINT', module:'Assess with Footprint',
+    vector:'Before anyone approaches, an attacker builds a picture of the target from public sources: imagery of the site, the organization public footprint, job ads that name the systems in use, and material employees post online. The aim is to learn the layout and the trust relationships without ever being seen.',
+    indicators:['Job postings naming the access control or badge platform','Employees posting badge or credential photos','Geotagged posts that expose interior or secure areas','Vendor and contractor relationships disclosed publicly','Document metadata leaking internal detail'],
+    fix:['Reduce the public footprint: generalize job ads and scrub document metadata','Set a social media and photography policy for staff','Train reception and staff to verify vendors','Review the public picture periodically as part of the attack surface']
+  },
+  {
+    name:'Approach & perimeter', module:'Assess with Sweep',
+    vector:'The attacker studies the outer ring: how the site is fenced, where people and vehicles enter, where cameras cover and where they do not, and how well the grounds are lit. Weak perimeters and dark, unwatched approaches invite a closer look.',
+    indicators:['Low barriers, climb aids near the line, gaps or breaches','Camera blind spots and dead zones','Dim or patchy lighting and dark approaches','Unmonitored or open gates'],
+    fix:['Apply layered defense and CPTED: raise and clear the perimeter','Close camera blind spots and light the approaches evenly','Control vehicle and pedestrian gates','Let natural surveillance and territorial reinforcement work for you']
+  },
+  {
+    name:'Entry & bypass', module:'Assess with Sweep and Tumbler',
+    vector:'At the door, attackers exploit weak hardware and human habit. Low grade locks, exposed hinges, oversized gaps, and unprotected latches are common weak points, and tailgating through a controlled door behind an authorized person needs no tools at all.',
+    indicators:['Grade 3 or unrated locks on sensitive openings','Exterior exposed hinges','Wide door gaps and unprotected latches','No anti tailgate control or mantrap at sensitive entries','Weak key control, open keyways, uncounted copies'],
+    fix:['Upgrade to Grade 1 hardware on sensitive openings and fit security hinge pins','Close gaps, add latch protection, and reinforce frames','Introduce anti tailgate controls or mantraps where it matters','Tighten key control with restricted keyways and a tracked key population'],
+    eco:'Hands on entry skills belong to legitimate locksport and physical security education, practiced within an authorized engagement. The kit identifies the weakness and writes the fix.'
+  },
+  {
+    name:'Credentials & RFID', module:'Assess with Credential and Aether',
+    vector:'Access credentials are only as strong as their technology. Legacy 125 kHz proximity cards and broken smart card schemes can be read and replayed, and an unauthenticated reader to panel link is a weak point behind the door. Capture can happen at a surprising distance.',
+    indicators:['125 kHz prox, magstripe, MIFARE Classic, or legacy iCLASS in use','Unauthenticated legacy Wiegand wiring between reader and panel','No defense against a credential presented from a copy'],
+    fix:['Migrate to modern encrypted credentials such as DESFire EV3 or Seos','Move reader to panel links to OSDP with secure channel','Consider mobile credentials with attestation','Treat legacy prox as a name badge, not a key'],
+    eco:'The RFID research tooling ecosystem and vendor documentation cover the hands on work. The kit job is to identify what is in use and rate it.'
+  },
+  {
+    name:'Cyber-physical bridge', module:'Assess with Aether, cross reference the cyber kit',
+    vector:'Physical access becomes network access. An open ethernet port in a lobby or conference room, a flat network with no access control, or open wireless lets an intruder plant a device that reaches back out, or stand up a rogue access point. This is where physical and cyber meet.',
+    indicators:['Live, unsecured network ports in public or semi public areas','No network access control or 802.1X, flat unsegmented networks','Open or weakly secured wireless, no wireless intrusion detection'],
+    fix:['Enforce network access control and 802.1X, and disable unused ports','Segment the network so a single port does not reach everything','Deploy wireless intrusion detection','Monitor for unexpected devices appearing on the network']
+  },
+  {
+    name:'Pretext & social engineering', module:'Assess with Sweep and Footprint',
+    vector:'The most reliable way past a control is often a person who waves you through. Attackers impersonate vendors, staff, or authority, lean on a plausible cover and the human reluctance to challenge, and use disclosed vendor relationships to pick a believable role.',
+    indicators:['No visitor verification or escort policy','A culture where staff do not challenge unfamiliar people in controlled areas','Publicly disclosed vendor relationships that make impersonation easy','Reception that is unstaffed or has no barrier'],
+    fix:['Stand up visitor management with verification and escort','Build a respectful challenge culture so staff question the unfamiliar','Train reception and staff to verify vendor identity and appointments','Reinforce awareness training regularly, since this control is human']
+  },
+  {
+    name:'Exfiltration & wrap-up', module:'Tie off with Safeconduct and Docket',
+    vector:'Getting out matters as much as getting in. An attacker leaves with data or hardware, may leave a device behind to keep access, and counts on the absence of egress checks and device accountability.',
+    indicators:['No egress controls or checks at exit','No inventory or accountability for devices on the network','No routine sweep for left behind or unexpected hardware'],
+    fix:['Add egress awareness and checks at sensitive exits','Keep a device inventory with clear accountability','Run post incident and periodic sweeps for unexpected hardware','Close the loop: detection and recovery, not only prevention']
+  },
+  {
+    name:'The defensive model', module:'The frame behind the whole kit',
+    vector:'Across the whole chain, organize defenses as layers: deter, detect, delay, deny, and respond. No single control is enough. The goal is depth, so a failure at one layer is caught by the next.',
+    indicators:['Deter: visible controls and signage that raise the cost of trying','Detect: surveillance, alarms, and a challenge culture that notice an attempt','Delay: hardware and barriers that buy time','Deny: access control and credentials that stop the unauthorized','Respond: monitoring, recovery, and a plan for when a layer fails'],
+    fix:['Footprint reduces what an attacker can learn','Sweep, Credential, and Aether find the gaps in detect, delay, and deny','Safeconduct and Docket keep the work accountable and turn it into a fix list'],
+    eco:'For the operational skills behind these vectors, rely on legitimate training: established locksport and physical security education, published red team and physical penetration testing literature, and the documented tooling ecosystems, always practiced under written authorization. The kit role is to assess, document, and remediate.'
+  }
+];
+
+const chain=document.getElementById('chain');
+chain.innerHTML=PHASES.map((p,i)=>{
+  const ind='<div class="lab">Exposure indicators</div><ul class="ilist">'+p.indicators.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul>';
+  const fix='<div class="lab">'+(i===PHASES.length-1?'How the kit maps to it':'Remediation')+'</div><ul class="ilist fix">'+p.fix.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul>';
+  const eco=p.eco?'<div class="eco">'+esc(p.eco)+'</div>':'';
+  const mod=p.module?'<div class="modtag">'+esc(p.module)+'</div>':'';
+  return '<div class="acc'+(i===0?' open':'')+'">'+
+    '<button data-i="'+i+'"><span class="ph-no">'+String(i+1).padStart(2,'0')+'</span><span class="ph-name">'+esc(p.name)+'</span><span class="chev">&rsaquo;</span></button>'+
+    '<div class="body"><div class="lab" style="margin-top:4px;">The vector</div><div class="vector">'+esc(p.vector)+'</div>'+ind+fix+mod+eco+'</div></div>';
+}).join('');
+
+chain.querySelectorAll('.acc > button').forEach(b=>b.addEventListener('click',()=>{
+  b.parentElement.classList.toggle('open');
+}));
+</script>
+</body>
+</html>

@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AETHER - Rampart Field Kit</title>
+<meta name="description" content="Wireless and RF exposure reference and a per site assessment that rates what you find and writes the remediation.">
+<link rel="stylesheet" href="theme.css">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#15191c">
+<link rel="apple-touch-icon" href="icon-192.png">
+<script src="gate.js"></script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</head>
+<body>
+<div class="band"><span>Authorized assessment use only</span></div>
+
+<header class="masthead">
+  <div class="wrap">
+    <div class="crumbs"><a href="index.html">Rampart</a><span class="sep">/</span><span>Mod 06</span><span class="sep">/</span><span>Aether</span></div>
+    <div class="kit-title"><span class="name">Aether</span><span class="no">033 · 06</span></div>
+    <div class="kit-sub">Wireless Exposure Assessment</div>
+    <p class="kit-lede">Identify the wireless and RF surface at a site, rate it by technology, and let the instrument write the upgrade. Aether records what you identify and reports it. It does not capture, replay, or transmit anything.</p>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" aria-selected="true"  data-tab="reference">Reference</button>
+    <button class="tab" role="tab" aria-selected="false" data-tab="assess">Assess site</button>
+    <button class="tab" role="tab" aria-selected="false" data-tab="report">Findings</button>
+  </div>
+
+  <!-- REFERENCE -->
+  <section class="panel active" id="reference">
+    <div class="card">
+      <h3>Wireless exposure posture</h3>
+      <p style="color:var(--mute);font-size:15px;">A field reference for judging the wireless surface by technology. Posture reflects whether the link resists eavesdropping, spoofing, and replay in the published literature. This identifies and rates. It does not reproduce a signal.</p>
+      <table class="tbl" id="ref-tbl">
+        <thead><tr><th>Technology</th><th class="mono">Band</th><th>Posture</th><th>Assessment note</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="note">Posture is a starting read from technology type. Keying, firmware, and configuration move the real risk in either direction. Confirm before you write the finding.</div>
+    </div>
+    <div class="card">
+      <h3>Presence is a finding too</h3>
+      <p style="color:var(--mute);font-size:15px;">Broadcast SSIDs, beacon identifiers, and device names leak the wireless footprint of a site and help an outsider map and target it. Note an oversized broadcast surface as its own observation, separate from the strength of any one link. Reducing what a site announces is often a cheap and useful recommendation.</p>
+    </div>
+  </section>
+
+  <!-- ASSESS -->
+  <section class="panel" id="assess">
+    <div class="card">
+      <h3>Log an exposure</h3>
+      <p style="color:var(--mute);font-size:15px;">Record each wireless feature you identify. Pick the technology and the instrument fills posture and the recommended remediation. Everything stays in this browser.</p>
+      <label class="fld"><span>Location / asset</span><input id="a-loc" placeholder="e.g. Gate controller at staff entrance"></label>
+      <label class="fld"><span>Technology</span><select id="a-tech"></select></label>
+      <label class="fld"><span>Note (optional)</span><input id="a-note" placeholder="Observed detail, context, mitigating controls"></label>
+      <div class="row-actions"><button class="btn" id="a-add">Add to findings</button></div>
+    </div>
+  </section>
+
+  <!-- REPORT -->
+  <section class="panel" id="report">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+        <h3 style="margin:0;">Findings</h3>
+        <div class="row-actions" style="margin:0;">
+          <button class="btn ghost sm" id="r-copy">Copy report</button>
+          <button class="btn ghost sm" id="r-export">Export JSON</button>
+          <button class="btn ghost sm" id="r-clear">Clear</button>
+        </div>
+      </div>
+      <div id="summary" style="margin:14px 0;"></div>
+      <div id="findings"></div>
+    </div>
+  </section>
+</main>
+
+<footer class="wrap foot">
+  <span><a href="index.html" style="color:var(--mute);">&larr; Back to kit</a></span>
+  <span>Aether · Mod 06</span>
+</footer>
+
+<script>
+const $ = id => document.getElementById(id);
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+const store = {
+  get(k,d){ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):d; }catch(e){ return d; } },
+  set(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){} }
+};
+
+/* ---------- reference data (defensive: identify, rate, remediate) ---------- */
+const TECH = [
+  { name:'WiFi open or WEP',                 band:'2.4 / 5 GHz',  posture:'crit',   note:'Unencrypted or broken encryption. Access and traffic are exposed.', fix:'Migrate to WPA3 or WPA2 Enterprise with 802.1X.' },
+  { name:'WiFi WPA2 PSK',                    band:'2.4 / 5 GHz',  posture:'weak',   note:'A single shared key. Exposed if the passphrase is weak or leaks.', fix:'Move to WPA2 or WPA3 Enterprise, rotate the PSK, segment guest access.' },
+  { name:'WiFi WPA3 or Enterprise',          band:'2.4 / 5 GHz',  posture:'strong', note:'Modern authentication. Strong when configured correctly.', fix:'Maintain and monitor for rogue access points.' },
+  { name:'Rogue AP / evil twin exposure',    band:'2.4 / 5 GHz',  posture:'crit',   note:'An unauthorized access point can impersonate the network and harvest clients.', fix:'Deploy a wireless IDS and enforce 802.1X with server certificate validation.' },
+  { name:'Bluetooth / BLE legacy pairing',   band:'2.4 GHz',      posture:'weak',   note:'Just works and legacy pairing give little protection to the link.', fix:'Require LE Secure Connections and limit discoverability.' },
+  { name:'BLE beacon (presence leak)',       band:'2.4 GHz',      posture:'weak',   note:'Beacons broadcast identifiers that leak presence and support tracking.', fix:'Randomize identifiers and confirm the beacon is actually needed.' },
+  { name:'Fixed code RF remote (gate/garage)',band:'300 to 400 MHz',posture:'crit', note:'Sends the same static code every time, so the link is replayable. Treat as low security.', fix:'Replace with a rolling code or credentialed access system.' },
+  { name:'Rolling code RF remote',           band:'300 to 400 MHz',posture:'strong',note:'A hopping code resists simple replay. Reasonable for its class.', fix:'Keep receiver firmware current and pair only known remotes.' },
+  { name:'Wireless camera, analog unencrypted',band:'0.9 / 2.4 GHz',posture:'crit', note:'Video is viewable off air by anyone in range.', fix:'Replace with encrypted IP cameras on a secured network.' },
+  { name:'Wireless camera, encrypted IP',    band:'2.4 / 5 GHz',  posture:'strong', note:'Encrypted transport. Strong with sound network and credentials.', fix:'Secure the WiFi, change default credentials, keep firmware current.' },
+  { name:'Alarm sensor, unencrypted sub GHz',band:'315 to 915 MHz',posture:'weak',  note:'Many legacy sensors send unauthenticated signals and are exposed to spoofing and interference.', fix:'Prefer encrypted and supervised sensors that report tamper and loss.' },
+  { name:'Alarm sensor, encrypted supervised',band:'sub GHz',     posture:'strong', note:'Authenticated and supervised signalling. Strong for its role.', fix:'Maintain supervision and battery monitoring.' },
+  { name:'Proprietary wireless lock, unencrypted',band:'varies',  posture:'crit',   note:'Unauthenticated wireless control of an opening is a serious exposure.', fix:'Confirm the protocol is encrypted and authenticated, replace if it is not.' },
+  { name:'Zigbee / Z Wave / Thread',         band:'2.4 GHz / sub GHz',posture:'weak',note:'Posture depends on keying. Default or weak keys leave the mesh exposed.', fix:'Confirm secure commissioning and unique network keys.' },
+  { name:'DECT cordless / analog two way radio',band:'1.9 GHz / VHF UHF',posture:'weak',note:'Analog or legacy voice links can leak sensitive traffic.', fix:'Use encrypted radios for any sensitive communications.' },
+  { name:'Cellular / LTE gateway',           band:'licensed',     posture:'info',   note:'Generally robust transport. Risk sits in device management, not the air link.', fix:'Confirm device authentication and secure remote management.' }
+];
+const POSTURE_LABEL={crit:'Critical',weak:'Weak',strong:'Strong',info:'Info'};
+const POSTURE_PILL ={crit:'pill crit',weak:'pill weak',strong:'pill strong',info:'pill info'};
+const SEV_ORDER={crit:0,weak:1,strong:2,info:3};
+
+/* reference table */
+document.querySelector('#ref-tbl tbody').innerHTML = TECH.map(t =>
+  '<tr><td>'+esc(t.name)+'</td><td class="mono">'+esc(t.band)+'</td>'+
+  '<td><span class="'+POSTURE_PILL[t.posture]+'">'+POSTURE_LABEL[t.posture]+'</span></td>'+
+  '<td style="color:var(--mute);">'+esc(t.note)+'</td></tr>').join('');
+
+/* assess select */
+$('a-tech').innerHTML = TECH.map((t,i)=>'<option value="'+i+'">'+esc(t.name)+'</option>').join('');
+
+/* ---------- tabs ---------- */
+const tabs=document.querySelectorAll('.tab');
+tabs.forEach(t=>t.addEventListener('click',()=>{
+  tabs.forEach(x=>x.setAttribute('aria-selected',x===t?'true':'false'));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active',p.id===t.dataset.tab));
+}));
+
+/* ---------- findings ---------- */
+const KEY='rampart.aether.findings';
+let finds=store.get(KEY,[]);
+
+$('a-add').onclick=()=>{
+  const loc=$('a-loc').value.trim();
+  if(!loc){ $('a-loc').focus(); return; }
+  const t=TECH[+$('a-tech').value];
+  finds.push({ type:'RF / wireless', loc, item:t.name, band:t.band, posture:t.posture, fix:t.fix, note:$('a-note').value.trim(), time:new Date().toISOString() });
+  store.set(KEY,finds);
+  $('a-loc').value=''; $('a-note').value='';
+  render();
+  document.querySelector('.tab[data-tab="report"]').click();
+};
+
+function render(){
+  const sum=$('summary'), body=$('findings');
+  if(!finds.length){ sum.innerHTML=''; body.innerHTML='<div class="empty">No findings yet. Log an exposure under Assess site.</div>'; return; }
+  const c={crit:0,weak:0,strong:0,info:0}; finds.forEach(f=>c[f.posture]++);
+  sum.innerHTML=['crit','weak','strong','info'].map((p,i)=>
+    '<span class="'+POSTURE_PILL[p]+'"'+(i?' style="margin-left:6px;"':'')+'>'+POSTURE_LABEL[p]+' '+c[p]+'</span>').join('');
+  const sorted=finds.map((f,i)=>({f,i})).sort((a,b)=>SEV_ORDER[a.f.posture]-SEV_ORDER[b.f.posture]);
+  let h='<table class="tbl"><thead><tr><th>Asset</th><th>Technology</th><th class="mono">Band</th><th>Posture</th><th>Recommendation</th><th></th></tr></thead><tbody>';
+  sorted.forEach(({f,i})=>{
+    h+='<tr><td>'+esc(f.loc)+(f.note?'<br><span style="color:var(--faint);font-size:12px;">'+esc(f.note)+'</span>':'')+'</td>'+
+       '<td>'+esc(f.item)+'</td><td class="mono">'+esc(f.band)+'</td>'+
+       '<td><span class="'+POSTURE_PILL[f.posture]+'">'+POSTURE_LABEL[f.posture]+'</span></td>'+
+       '<td style="color:var(--mute);">'+esc(f.fix)+'</td>'+
+       '<td><button class="btn ghost sm" data-del="'+i+'">Remove</button></td></tr>';
+  });
+  body.innerHTML=h+'</tbody></table>';
+  body.querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click',()=>{ finds.splice(+b.dataset.del,1); store.set(KEY,finds); render(); }));
+}
+function reportText(){
+  const L=['RAMPART / AETHER WIRELESS ASSESSMENT','Generated '+new Date().toISOString().slice(0,10),''];
+  ['crit','weak','strong','info'].forEach(p=>{
+    const rows=finds.filter(f=>f.posture===p); if(!rows.length) return;
+    L.push('['+POSTURE_LABEL[p].toUpperCase()+']');
+    rows.forEach(f=>{ L.push('  '+f.loc); L.push('    Technology: '+f.item+' ('+f.band+')'); if(f.note) L.push('    Note: '+f.note); L.push('    Recommendation: '+f.fix); L.push(''); });
+  });
+  return L.join('\n');
+}
+$('r-copy').onclick=async()=>{ if(!finds.length) return; try{ await navigator.clipboard.writeText(reportText()); alert('Report copied to clipboard.'); }catch(e){ alert('Copy failed. Use Export JSON instead.'); } };
+$('r-export').onclick=()=>{ const b=new Blob([JSON.stringify(finds,null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='aether-findings.json'; a.click(); URL.revokeObjectURL(a.href); };
+$('r-clear').onclick=()=>{ if(confirm('Clear all findings?')){ finds=[]; store.set(KEY,finds); render(); } };
+render();
+</script>
+</body>
+</html>

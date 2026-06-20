@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TOUCHSTONE - Rampart Field Kit</title>
+<meta name="description" content="Tap to identify an access credential or nearby device, then rate it in Credential. Identify only, never clone.">
+<link rel="stylesheet" href="theme.css">
+<style>
+  .tap-btn {
+    font-family:var(--display); font-weight:800; font-size:26px; letter-spacing:0.1em; text-transform:uppercase;
+    width:100%; padding:22px; border-radius:4px; cursor:pointer; border:2px solid var(--rust); color:var(--rust);
+    background:rgba(194,91,58,0.08); transition:all .15s ease;
+  }
+  .tap-btn:hover { background:rgba(194,91,58,0.16); }
+  .tap-btn.scanning { border-color:var(--amber); color:var(--amber); animation:pulse 1.2s ease infinite; }
+  @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:.55;} }
+  .result { border:1px solid var(--line-2); border-radius:var(--rad); padding:16px; margin-top:14px; background:var(--plate); }
+  .result .rk { font-family:var(--mono); font-size:10.5px; letter-spacing:0.14em; text-transform:uppercase; color:var(--steel); }
+  .result .rv { font-family:var(--mono); font-size:13px; color:var(--cream); word-break:break-all; margin:2px 0 10px; }
+  .statline { font-family:var(--mono); font-size:12px; letter-spacing:0.14em; text-transform:uppercase; color:var(--mute); margin-top:12px; }
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#15191c">
+<link rel="apple-touch-icon" href="icon-192.png">
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</head>
+<body>
+<div class="band"><span>Authorized assessment use only</span></div>
+
+<header class="masthead">
+  <div class="wrap">
+    <div class="crumbs"><a href="index.html">Rampart</a><span class="sep">/</span><span>Mod 09</span><span class="sep">/</span><span>Touchstone</span></div>
+    <div class="kit-title"><span class="name">Touchstone</span><span class="no">033 · 09</span></div>
+    <div class="kit-sub">Tap to Identify</div>
+    <p class="kit-lede">Tap a credential or a nearby device to identify its technology and standard, then send it to Credential for rating. Touchstone reads to identify. It cannot and does not clone, emulate, or dump a credential.</p>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" aria-selected="true"  data-tab="reader">Reader</button>
+    <button class="tab" role="tab" aria-selected="false" data-tab="guide">Identify guide</button>
+    <button class="tab" role="tab" aria-selected="false" data-tab="log">Read log</button>
+  </div>
+
+  <!-- READER -->
+  <section class="panel active" id="reader">
+    <div class="card">
+      <h3>Tap a credential (NFC)</h3>
+      <p style="color:var(--mute);font-size:15px;">Start the reader, then hold an access card or tag to the top of the phone. Touchstone reports what it can observe and infers the technology family. Web NFC runs on Android Chrome over HTTPS.</p>
+      <button class="tap-btn" id="nfc-btn">Start NFC reader</button>
+      <div class="statline" id="nfc-stat"></div>
+      <div id="nfc-out"></div>
+    </div>
+
+    <div class="card">
+      <h3>Identify a nearby device (Bluetooth)</h3>
+      <p style="color:var(--mute);font-size:15px;">Pick a nearby Bluetooth device to identify it by name and services. Useful for wireless locks, beacons, and cameras. Best effort, and some devices will not connect.</p>
+      <button class="btn" id="ble-btn">Scan for a device</button>
+      <div class="statline" id="ble-stat"></div>
+      <div id="ble-out"></div>
+    </div>
+  </section>
+
+  <!-- GUIDE -->
+  <section class="panel" id="guide">
+    <div class="card">
+      <h3>Manual identifier</h3>
+      <p style="color:var(--mute);font-size:15px;">No reader on this device, or want to identify from what you can see at the reader. Answer what you know and Touchstone maps it to a likely technology, then sends it to Credential.</p>
+      <div class="two-col">
+        <label class="fld"><span>Frequency</span>
+          <select id="m-freq"><option value="">Unknown</option><option value="125">125 kHz (low frequency)</option><option value="1356">13.56 MHz (high frequency)</option><option value="mag">Magnetic stripe</option></select>
+        </label>
+        <label class="fld"><span>Form</span>
+          <select id="m-form"><option value="">Unknown</option><option value="card">Card</option><option value="fob">Fob</option><option value="phone">Phone / mobile</option><option value="smart">Contact smart card</option></select>
+        </label>
+      </div>
+      <label class="fld"><span>Reader or system markings</span><input id="m-mark" placeholder="Brand or model on the reader, if visible"></label>
+      <div class="suggest" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;border:1px dashed var(--line-2);border-radius:var(--rad);padding:12px 14px;margin:4px 0 14px;">
+        <span style="font-family:var(--mono);font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:var(--steel);">Likely</span>
+        <span id="m-guess" style="color:var(--mute);font-size:13.5px;flex:1;min-width:200px;">Answer above to identify.</span>
+      </div>
+      <label class="fld"><span>Location / reader label</span><input id="m-loc" placeholder="e.g. Loading dock reader"></label>
+      <div class="row-actions"><button class="btn" id="m-send">Send to Credential</button></div>
+    </div>
+    <div class="card">
+      <h3>Reading the signals</h3>
+      <table class="tbl">
+        <thead><tr><th>Observation</th><th>Points to</th></tr></thead>
+        <tbody>
+          <tr><td>Thick card, swipe not tap</td><td>Magnetic stripe (treat as insecure)</td></tr>
+          <tr><td>125 kHz, reads at a distance, no tap needed</td><td>Prox family (HID Prox, EM, AWID), insecure</td></tr>
+          <tr><td>13.56 MHz, must tap close, 4 byte UID</td><td>Often MIFARE Classic, treat as broken</td></tr>
+          <tr><td>13.56 MHz, 7 byte UID, NDEF present</td><td>NTAG, Ultralight, or DESFire family</td></tr>
+          <tr><td>Phone unlock by tap</td><td>Mobile credential (Seos, Apple, Google)</td></tr>
+          <tr><td>Contact chip, inserted</td><td>PIV or CAC smart card, high assurance</td></tr>
+        </tbody>
+      </table>
+      <div class="note">Touchstone identifies the technology so you can rate it. It does not read protected contents, and the browser cannot write a credential back to a blank, so there is no clone path here by design.</div>
+    </div>
+  </section>
+
+  <!-- LOG -->
+  <section class="panel" id="log">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+        <h3 style="margin:0;">Read log</h3>
+        <div class="row-actions" style="margin:0;">
+          <button class="btn ghost sm" id="export">Export JSON</button>
+          <button class="btn ghost sm" id="clear">Clear</button>
+        </div>
+      </div>
+      <div id="log-body" style="margin-top:14px;"></div>
+    </div>
+  </section>
+</main>
+
+<footer class="wrap foot">
+  <span><a href="index.html" style="color:var(--mute);">&larr; Back to kit</a></span>
+  <span>Touchstone · Mod 09</span>
+</footer>
+
+<script>
+const $ = id => document.getElementById(id);
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+const store = {
+  get(k,d){ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):d; }catch(e){ return d; } },
+  set(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){} }
+};
+
+/* ---------- read log ---------- */
+const KEY='rampart.touchstone.log';
+let log=store.get(KEY,[]);
+function addLog(kind, summary){ log.push({kind, summary, time:new Date().toISOString()}); store.set(KEY,log); renderLog(); }
+function renderLog(){
+  const el=$('log-body');
+  if(!log.length){ el.innerHTML='<div class="empty">No identifications logged yet.</div>'; return; }
+  el.innerHTML='<table class="tbl"><thead><tr><th class="mono">Time</th><th>Kind</th><th>Identified</th></tr></thead><tbody>'+
+    log.slice().reverse().map(e=>'<tr><td class="mono" style="font-size:11.5px;">'+esc((e.time||'').replace('T',' ').slice(0,19))+'</td><td>'+esc(e.kind)+'</td><td>'+esc(e.summary)+'</td></tr>').join('')+
+    '</tbody></table>';
+}
+$('export').onclick=()=>{ const b=new Blob([JSON.stringify(log,null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='touchstone-log.json'; a.click(); URL.revokeObjectURL(a.href); };
+$('clear').onclick=()=>{ if(confirm('Clear the read log?')){ log=[]; store.set(KEY,log); renderLog(); } };
+renderLog();
+
+/* ---------- handoff to Credential ---------- */
+function sendToCredential(tech, loc, note){
+  store.set('rampart.credential.prefill', { tech:tech||'', loc:loc||'', note:note||'' });
+  location.href='credential.html';
+}
+
+/* ---------- NFC ---------- */
+let nfcReader=null;
+function uidLenHint(n){
+  if(n===4) return '4 byte UID. Common on MIFARE Classic and some older or randomized tags.';
+  if(n===7) return '7 byte UID. Common on MIFARE Ultralight, NTAG, and DESFire.';
+  if(n>0) return n+' byte UID.';
+  return 'No serial reported.';
+}
+function decodeRecord(r){
+  try{
+    if(r.recordType==='text'){ return {t:'Text', v:new TextDecoder(r.encoding||'utf-8').decode(r.data)}; }
+    if(r.recordType==='url'||r.recordType==='absolute-url'){ return {t:'URL', v:new TextDecoder().decode(r.data)}; }
+    if(r.recordType==='mime'){ return {t:'MIME '+(r.mediaType||''), v:'('+(r.data?r.data.byteLength:0)+' bytes)'}; }
+    return {t:String(r.recordType||'record'), v:'('+(r.data?r.data.byteLength:0)+' bytes)'};
+  }catch(e){ return {t:String(r.recordType||'record'), v:'(unreadable)'}; }
+}
+$('nfc-btn').onclick=async()=>{
+  if(!('NDEFReader' in window)){ $('nfc-stat').textContent='Web NFC not available here. Use Android Chrome, or the manual identifier.'; return; }
+  try{
+    nfcReader=new NDEFReader();
+    await nfcReader.scan();
+    $('nfc-btn').classList.add('scanning'); $('nfc-btn').textContent='Reading, hold a tag';
+    $('nfc-stat').textContent='Hold an access card to the top of the phone.';
+    nfcReader.onreadingerror=()=>{ $('nfc-stat').textContent='Could not read that tag. Try repositioning.'; };
+    nfcReader.onreading=ev=>{
+      const uid=ev.serialNumber||''; const bytes=uid?uid.split(':').length:0;
+      const recs=(ev.message&&ev.message.records)?ev.message.records:[];
+      const hasNDEF=recs.length>0;
+      const guess = hasNDEF ? 'NDEF NFC Forum tag (NTAG, Ultralight, or DESFire family)' : 'NFC tag (ISO 14443 / NFC Forum)';
+      let h='<div class="result"><div class="rk">Detected</div><div class="rv">'+esc(guess)+'</div>'+
+            '<div class="rk">Serial / UID</div><div class="rv">'+(uid?esc(uid):'not reported')+'</div>'+
+            '<div class="rk">Inference</div><div class="rv">'+esc(uidLenHint(bytes))+'</div>';
+      if(hasNDEF){
+        h+='<div class="rk">NDEF records</div><div class="rv">';
+        h+=recs.map(r=>{ const d=decodeRecord(r); return esc(d.t)+': '+esc(String(d.v).slice(0,120)); }).join('<br>');
+        h+='</div>';
+      }
+      h+='<button class="btn sm" id="nfc-rate">Send to Credential</button></div>';
+      $('nfc-out').innerHTML=h;
+      $('nfc-rate').onclick=()=>sendToCredential('', '', '13.56 MHz NFC tag, '+(uid?bytes+' byte UID':'no UID')+(hasNDEF?', NDEF present':''));
+      addLog('NFC', guess+(uid?' ('+bytes+' byte UID)':''));
+    };
+  }catch(err){ $('nfc-stat').textContent='NFC permission denied or unavailable.'; }
+};
+
+/* ---------- BLE ---------- */
+$('ble-btn').onclick=async()=>{
+  if(!navigator.bluetooth){ $('ble-stat').textContent='Web Bluetooth not available here. Use Chrome or Edge over HTTPS.'; return; }
+  try{
+    $('ble-stat').textContent='Choose a device from the picker.';
+    const dev=await navigator.bluetooth.requestDevice({ acceptAllDevices:true, optionalServices:['device_information','battery_service','generic_access','generic_attribute'] });
+    let services=[];
+    try{ const srv=await dev.gatt.connect(); const ss=await srv.getPrimaryServices(); services=ss.map(s=>s.uuid); if(srv.connected) srv.disconnect(); }catch(e){}
+    const name=dev.name||'(no name advertised)';
+    let h='<div class="result"><div class="rk">Device</div><div class="rv">'+esc(name)+'</div>'+
+          '<div class="rk">Id</div><div class="rv">'+esc(dev.id||'')+'</div>';
+    if(services.length){ h+='<div class="rk">Services</div><div class="rv">'+services.map(esc).join('<br>')+'</div>'; }
+    h+='</div>';
+    $('ble-out').innerHTML=h; $('ble-stat').textContent='';
+    addLog('BLE', name+(services.length?' ('+services.length+' services)':''));
+  }catch(err){ $('ble-stat').textContent='No device selected, or the scan was cancelled.'; }
+};
+
+/* ---------- manual identifier ---------- */
+function manualGuess(){
+  const freq=$('m-freq').value, form=$('m-form').value;
+  let tech='', text='Answer above to identify.';
+  if(freq==='mag'){ tech='Magnetic stripe'; text='Magnetic stripe. No cryptography, treat as insecure.'; }
+  else if(freq==='125'){ tech='125 kHz prox (HID Prox, EM)'; text='Low frequency prox family. Static unencrypted ID, insecure.'; }
+  else if(freq==='1356'){
+    if(form==='phone'){ tech='Mobile credential (Seos/NFC/BLE)'; text='Mobile credential. Strong with proper enrollment.'; }
+    else { tech='MIFARE Classic'; text='High frequency card. Often MIFARE Classic (broken). Confirm the exact product, it may be DESFire or Seos.'; }
+  }
+  else if(form==='smart'){ tech='PIV / CAC smart card (PKI)'; text='Contact smart card, likely PKI based and high assurance.'; }
+  $('m-guess').textContent=text;
+  return tech;
+}
+let manualTech='';
+['m-freq','m-form'].forEach(id=>$(id).addEventListener('change',()=>{ manualTech=manualGuess(); }));
+manualTech=manualGuess();
+$('m-send').onclick=()=>{
+  const mark=$('m-mark').value.trim();
+  addLog('Manual', ($('m-guess').textContent||'Identification')+(mark?' ['+mark+']':''));
+  sendToCredential(manualTech, $('m-loc').value.trim(), mark?('Reader markings: '+mark):'');
+};
+
+/* ---------- tabs ---------- */
+const tabs=document.querySelectorAll('.tab');
+tabs.forEach(t=>t.addEventListener('click',()=>{
+  tabs.forEach(x=>x.setAttribute('aria-selected',x===t?'true':'false'));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active',p.id===t.dataset.tab));
+}));
+</script>
+</body>
+</html>

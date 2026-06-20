@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DOCKET - Rampart Field Kit</title>
+<meta name="description" content="Compile the kit's findings and the engagement letter into one prioritized client report.">
+<link rel="stylesheet" href="theme.css">
+<style>
+  .src-row { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:11px 0; border-bottom:1px solid var(--line); font-size:14.5px; }
+  .src-row .n { font-family:var(--mono); font-size:12px; color:var(--mute); letter-spacing:0.1em; }
+  .src-row .n.has { color:var(--olive); }
+  .rep-head { border-bottom:2px solid var(--rust); padding-bottom:16px; margin-bottom:8px; }
+  .rep-head .kicker { font-family:var(--mono); font-size:11px; letter-spacing:0.24em; text-transform:uppercase; color:var(--rust); }
+  .rep-head h2 { font-size:clamp(26px,5vw,40px); text-transform:uppercase; letter-spacing:0.02em; margin:6px 0; }
+  .meta-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:4px 24px; margin-top:10px; }
+  @media (max-width:600px){ .meta-grid{ grid-template-columns:1fr; } }
+  .meta-grid .k { font-family:var(--mono); font-size:10.5px; letter-spacing:0.14em; text-transform:uppercase; color:var(--steel); }
+  .meta-grid .v { color:var(--cream); margin-bottom:8px; }
+  .sev-head { font-family:var(--display); font-weight:700; text-transform:uppercase; letter-spacing:0.06em; font-size:18px; margin:26px 0 10px; padding-bottom:6px; border-bottom:1px solid var(--line); }
+  .scope-box { font-size:14px; color:var(--mute); white-space:pre-wrap; }
+  @media print {
+    .band,.masthead,.tabs,.foot,#sources-panel,.report-actions { display:none !important; }
+    body::before{ display:none !important; }
+    body { background:#fff !important; color:#111 !important; font-size:12px; }
+    .wrap { max-width:none; padding:0; }
+    .card { background:#fff !important; border:1px solid #ccc !important; }
+    #report-doc, .rep-head h2, .meta-grid .v, .sev-head, h3 { color:#111 !important; }
+    .scope-box, td, .meta-grid .v { color:#222 !important; }
+    .tbl th { color:#444 !important; }
+    .tbl th, .tbl td { border-color:#ccc !important; }
+    .pill { background:#fff !important; }
+    .pill.crit{ color:#a11 !important; border-color:#a11 !important; }
+    .pill.weak{ color:#a60 !important; border-color:#a60 !important; }
+    .pill.strong{ color:#363 !important; border-color:#363 !important; }
+    .pill.info{ color:#356 !important; border-color:#356 !important; }
+  }
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#15191c">
+<link rel="apple-touch-icon" href="icon-192.png">
+<script src="gate.js"></script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</head>
+<body>
+<div class="band"><span>Authorized assessment use only</span></div>
+
+<header class="masthead">
+  <div class="wrap">
+    <div class="crumbs"><a href="index.html">Rampart</a><span class="sep">/</span><span>Mod 07</span><span class="sep">/</span><span>Docket</span></div>
+    <div class="kit-title"><span class="name">Docket</span><span class="no">033 · 07</span></div>
+    <div class="kit-sub">Report Compiler</div>
+    <p class="kit-lede">Gather the findings from across the kit and the engagement letter, and compile one prioritized report for the client. Pull from this device if you ran the tools here, or import the exported files. Print to a clean PDF when it is ready.</p>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" aria-selected="true"  data-tab="sources">Sources</button>
+    <button class="tab" role="tab" aria-selected="false" data-tab="report">Report</button>
+  </div>
+
+  <!-- SOURCES -->
+  <section class="panel active" id="sources-panel">
+    <div class="card">
+      <h3>Load findings</h3>
+      <p style="color:var(--mute);font-size:15px;">Docket reads the shared findings format that Credential, Sweep, and Aether all write, plus the Safeconduct engagement letter and activity log.</p>
+      <div class="row-actions">
+        <button class="btn" id="pull">Pull from this device</button>
+        <button class="btn ghost" id="import-btn">Import file(s)</button>
+        <button class="btn ghost" id="clear">Clear loaded</button>
+        <input type="file" id="file" accept="application/json,.json" multiple style="display:none;">
+      </div>
+      <div class="note" style="margin-top:16px;">Pull reads the tools you used in this browser. Import accepts the JSON files exported from each module, so you can combine work from more than one device.</div>
+    </div>
+    <div class="card">
+      <h3>Report cover</h3>
+      <p style="color:var(--mute);font-size:15px;">Optional. Overrides the title and client on the report, and adds a logo to the printed copy. Defaults come from the engagement letter.</p>
+      <div class="two-col">
+        <label class="fld"><span>Report title</span><input id="cv-title" placeholder="From engagement letter"></label>
+        <label class="fld"><span>Client name</span><input id="cv-client" placeholder="From engagement letter"></label>
+      </div>
+      <label class="fld"><span>Client logo (optional)</span><input type="file" id="cv-logo" accept="image/*"></label>
+      <div id="cv-logo-prev" style="margin:-4px 0 6px;"></div>
+    </div>
+    <div class="card">
+      <h3>Loaded</h3>
+      <div id="src-list" style="margin-top:8px;"></div>
+    </div>
+  </section>
+
+  <!-- REPORT -->
+  <section class="panel" id="report">
+    <div class="card report-actions">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+        <h3 style="margin:0;">Compiled report</h3>
+        <div class="row-actions" style="margin:0;">
+          <button class="btn" id="print">Print / Save PDF</button>
+          <button class="btn ghost sm" id="copy">Copy text</button>
+          <button class="btn ghost sm" id="export">Export JSON</button>
+        </div>
+      </div>
+    </div>
+    <div class="card" id="report-doc"></div>
+  </section>
+</main>
+
+<footer class="wrap foot">
+  <span><a href="index.html" style="color:var(--mute);">&larr; Back to kit</a></span>
+  <span>Docket · Mod 07</span>
+</footer>
+
+<script>
+const $ = id => document.getElementById(id);
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+const store = {
+  get(k,d){ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):d; }catch(e){ return d; } },
+  set(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){} }
+};
+const POSTURE_LABEL={crit:'Critical',weak:'Medium',strong:'Adequate',info:'Informational'};
+const POSTURE_PILL ={crit:'pill crit',weak:'pill weak',strong:'pill strong',info:'pill info'};
+const SEV=['crit','weak','strong','info'];
+
+const DKEY='rampart.docket.dataset';
+let data = store.get(DKEY, { auth:null, log:[], findings:[], cover:{} });
+if(!data.cover) data.cover={};
+
+/* ---------- normalization ---------- */
+function srcOf(f){
+  if(f.band!==undefined) return 'Aether';
+  if(f.attrs!==undefined) return 'Sweep';
+  if(f.wire!==undefined || (f.tech!==undefined && f.item===undefined)) return 'Credential';
+  if(f.type && /door|perimeter|barrier|camera|gate|window|lighting|alarm|reception/i.test(f.type)) return 'Sweep';
+  if(f.type && /approach|exposure|footprint/i.test(f.type)) return 'Footprint';
+  return 'Finding';
+}
+function normalize(f){
+  const src=srcOf(f);
+  return {
+    source:src,
+    type: f.type || (src==='Aether'?'RF / wireless':(src==='Credential'?'Access credential':'Finding')),
+    loc: f.loc || f.location || '(location not given)',
+    item: f.item || f.tech || '(unspecified)',
+    posture: SEV.includes(f.posture)? f.posture : 'info',
+    fix: f.fix || '',
+    note: f.note || '',
+    extra: f.band ? ('Band '+f.band) : (f.wire ? ('Reader link '+f.wire) : ''),
+    photo: f.photo || null,
+    status: ['open','progress','closed'].includes(f.status) ? f.status : 'open',
+    time: f.time || ''
+  };
+}
+function addFindings(arr){
+  if(!Array.isArray(arr)) return 0;
+  let n=0;
+  arr.forEach(f=>{ if(f && typeof f==='object' && (f.posture||f.fix||f.tech||f.item)){ data.findings.push(normalize(f)); n++; } });
+  return n;
+}
+function fkey(f){ return f.source+'|'+f.loc+'|'+f.item; }
+function statusMemory(){ const m={}; data.findings.forEach(f=>{ m[fkey(f)]=f.status; }); return m; }
+function restoreStatus(mem){ data.findings.forEach(f=>{ if(mem[fkey(f)]) f.status=mem[fkey(f)]; }); }
+
+/* ---------- pull from device ---------- */
+$('pull').onclick=()=>{
+  const mem=statusMemory();
+  data.findings=[];
+  ['rampart.credential.findings','rampart.sweep.findings','rampart.aether.findings','rampart.footprint.findings'].forEach(k=>addFindings(store.get(k,[])));
+  restoreStatus(mem);
+  const auth=store.get('rampart.safeconduct.auth',null); if(auth && Object.keys(auth).length) data.auth=auth;
+  const log=store.get('rampart.safeconduct.log',[]); if(log.length) data.log=log;
+  store.set(DKEY,data); renderSources(); renderReport();
+};
+
+/* ---------- import ---------- */
+$('import-btn').onclick=()=>$('file').click();
+$('file').onchange=async e=>{
+  for(const file of e.target.files){
+    try{
+      const obj=JSON.parse(await file.text());
+      if(Array.isArray(obj)) addFindings(obj);
+      else if(obj && (obj.auth||obj.entries)){ if(obj.auth) data.auth=obj.auth; if(obj.entries) data.log=obj.entries; }
+      else if(obj && obj.findings){ addFindings(obj.findings); if(obj.auth) data.auth=obj.auth; if(obj.log) data.log=obj.log; }
+    }catch(err){ alert('Could not read '+file.name+'. Expecting JSON exported from the kit.'); }
+  }
+  e.target.value=''; store.set(DKEY,data); renderSources(); renderReport();
+};
+$('clear').onclick=()=>{ if(confirm('Clear all loaded sources?')){ data={auth:null,log:[],findings:[],cover:{}}; store.set(DKEY,data); $('cv-title').value=''; $('cv-client').value=''; $('cv-logo-prev').innerHTML=''; renderSources(); renderReport(); } };
+
+/* ---------- cover ---------- */
+$('cv-title').value=data.cover.title||''; $('cv-client').value=data.cover.client||'';
+function showLogoPrev(){
+  $('cv-logo-prev').innerHTML = data.cover.logo
+    ? '<img src="'+data.cover.logo+'" style="max-height:46px;border:1px solid var(--line-2);border-radius:2px;"> <button class="btn ghost sm" id="cv-logo-clr">Remove logo</button>'
+    : '';
+  const b=$('cv-logo-clr'); if(b) b.onclick=()=>{ data.cover.logo=null; store.set(DKEY,data); showLogoPrev(); renderReport(); };
+}
+$('cv-title').addEventListener('input',()=>{ data.cover.title=$('cv-title').value; store.set(DKEY,data); });
+$('cv-client').addEventListener('input',()=>{ data.cover.client=$('cv-client').value; store.set(DKEY,data); });
+$('cv-logo').addEventListener('change',e=>{
+  const file=e.target.files[0]; if(!file) return;
+  const img=new Image(), rd=new FileReader();
+  rd.onload=()=>{ img.onload=()=>{
+    const max=240; let{width:w,height:h}=img;
+    if(w>h && w>max){ h=Math.round(h*max/w); w=max; } else if(h>max){ w=Math.round(w*max/h); h=max; }
+    const cv=document.createElement('canvas'); cv.width=w; cv.height=h; cv.getContext('2d').drawImage(img,0,0,w,h);
+    data.cover.logo=cv.toDataURL('image/png'); store.set(DKEY,data); showLogoPrev(); renderReport();
+  }; img.src=rd.result; };
+  rd.readAsDataURL(file);
+});
+showLogoPrev();
+
+/* ---------- sources view ---------- */
+function renderSources(){
+  const counts={Credential:0,Sweep:0,Aether:0,Footprint:0,Finding:0};
+  data.findings.forEach(f=>counts[f.source]=(counts[f.source]||0)+1);
+  const eng = data.auth && data.auth.eng ? data.auth.eng : null;
+  const rows=[
+    ['Credential findings', counts.Credential],
+    ['Sweep findings', counts.Sweep],
+    ['Aether findings', counts.Aether],
+    ['Footprint findings', counts.Footprint],
+    ['Other findings', counts.Finding],
+    ['Engagement letter', eng ? eng : 0],
+    ['Activity log', data.log.length ? data.log.length+' entries' : 0]
+  ];
+  $('src-list').innerHTML = rows.map(r=>{
+    const has = r[1] && r[1]!==0;
+    return '<div class="src-row"><span>'+esc(r[0])+'</span><span class="n'+(has?' has':'')+'">'+(has?esc(r[1]):'none')+'</span></div>';
+  }).join('');
+}
+
+/* ---------- report ---------- */
+function metaRow(k,v){ return '<div><div class="k">'+esc(k)+'</div><div class="v">'+esc(v||'-')+'</div></div>'; }
+const STATUS_LABEL={open:'Open',progress:'In progress',closed:'Closed'};
+function statusSelect(gi,val){
+  return '<select class="status-sel" data-idx="'+gi+'" style="padding:4px 6px;font-size:12px;">'+
+    ['open','progress','closed'].map(s=>'<option value="'+s+'"'+(s===val?' selected':'')+'>'+STATUS_LABEL[s]+'</option>').join('')+'</select>';
+}
+function findingTable(list, showStatus){
+  let h='<table class="tbl"><thead><tr><th>Location</th><th>Item</th><th>Severity</th>'+(showStatus?'<th>Status</th>':'')+'<th>Recommendation</th><th class="mono">Source</th></tr></thead><tbody>';
+  list.forEach(f=>{
+    const gi=data.findings.indexOf(f);
+    h+='<tr><td>'+esc(f.loc)+
+       (f.photo?'<br><img src="'+f.photo+'" style="max-width:84px;border:1px solid var(--line);border-radius:2px;margin-top:4px;">':'')+
+       (f.note?'<br><span style="color:var(--faint);font-size:12px;">'+esc(f.note)+'</span>':'')+'</td>'+
+       '<td>'+esc(f.item)+(f.extra?'<br><span style="color:var(--faint);font-size:12px;" class="mono">'+esc(f.extra)+'</span>':'')+'</td>'+
+       '<td><span class="'+POSTURE_PILL[f.posture]+'">'+POSTURE_LABEL[f.posture]+'</span></td>'+
+       (showStatus?'<td>'+statusSelect(gi,f.status)+'</td>':'')+
+       '<td style="color:var(--mute);">'+esc(f.fix)+'</td>'+
+       '<td class="mono" style="color:var(--faint);">'+esc(f.source)+'</td></tr>';
+  });
+  return h+'</tbody></table>';
+}
+function renderReport(){
+  const el=$('report-doc');
+  if(!data.findings.length && !data.auth){ el.innerHTML='<div class="empty">Nothing loaded yet. Pull from this device or import files under Sources.</div>'; return; }
+  const a=data.auth||{};
+  const cv=data.cover||{};
+  const title = cv.title || a.eng || 'Assessment Report';
+  const client = cv.client || a.client;
+  const c={crit:0,weak:0,strong:0,info:0}; data.findings.forEach(f=>c[f.posture]++);
+  const total=data.findings.length;
+  const actionable=data.findings.filter(f=>f.posture==='crit'||f.posture==='weak');
+  const st={open:0,progress:0,closed:0}; actionable.forEach(f=>st[f.status]++);
+  let h='';
+  h+='<div class="rep-head">'+
+     (cv.logo?'<img src="'+cv.logo+'" alt="" style="max-height:54px;margin-bottom:10px;display:block;">':'')+
+     '<div class="kicker">Rampart · Physical Security Assessment</div>'+
+     '<h2>'+esc(title)+'</h2>'+
+     '<div class="meta-grid">'+
+       metaRow('Client', client)+metaRow('Assessor', a.assessor)+
+       metaRow('Authorized by', [a['auth-name'],a['auth-title']].filter(Boolean).join(', '))+
+       metaRow('Verify with', a['auth-contact'])+
+       metaRow('Engagement window', (a['d-start']||'-')+' to '+(a['d-end']||'-'))+
+       metaRow('Compiled', new Date().toISOString().slice(0,10))+
+     '</div></div>';
+
+  h+='<div class="sev-head">Executive summary</div>';
+  h+='<p style="color:var(--mute);font-size:14.5px;">This report consolidates '+total+' finding'+(total===1?'':'s')+' recorded during the engagement. '+
+     c.crit+' rated critical and require priority remediation, '+c.weak+' rated medium. '+c.strong+' feature'+(c.strong===1?' was':'s were')+' reviewed and found adequate.</p>';
+  h+='<div style="margin:10px 0 4px;">'+SEV.map((p,i)=>'<span class="'+POSTURE_PILL[p]+'"'+(i?' style="margin-left:6px;"':'')+'>'+POSTURE_LABEL[p]+' '+c[p]+'</span>').join('')+'</div>';
+  if(actionable.length){
+    h+='<p style="color:var(--faint);font-size:13px;margin-top:10px;">Remediation status of the '+actionable.length+' actionable finding'+(actionable.length===1?'':'s')+': '+
+       st.open+' open, '+st.progress+' in progress, '+st.closed+' closed.</p>';
+  }
+
+  if(a['in-scope']||a['out-scope']){
+    h+='<div class="sev-head">Scope</div>';
+    if(a['in-scope']) h+='<div style="margin-bottom:10px;"><div class="k" style="font-family:var(--mono);font-size:10.5px;letter-spacing:0.14em;text-transform:uppercase;color:var(--steel);">In scope</div><div class="scope-box">'+esc(a['in-scope'])+'</div></div>';
+    if(a['out-scope']) h+='<div><div class="k" style="font-family:var(--mono);font-size:10.5px;letter-spacing:0.14em;text-transform:uppercase;color:var(--steel);">Out of scope</div><div class="scope-box">'+esc(a['out-scope'])+'</div></div>';
+  }
+
+  const order=[['crit','Critical findings',true],['weak','Medium findings',true],['strong','Reviewed and adequate',false],['info','Informational',false]];
+  order.forEach(([p,title,showStatus])=>{
+    const list=data.findings.filter(f=>f.posture===p);
+    if(!list.length) return;
+    h+='<div class="sev-head">'+title+' ('+list.length+')</div>'+findingTable(list, showStatus);
+  });
+
+  if(data.log.length){
+    h+='<div class="sev-head">Appendix · Activity log</div>'+
+       '<p style="color:var(--faint);font-size:13px;">'+data.log.length+' entries, chained by hash. Integrity is verifiable in Safeconduct.</p>'+
+       '<table class="tbl"><thead><tr><th class="mono">#</th><th class="mono">Time</th><th>Entry</th></tr></thead><tbody>'+
+       data.log.map(e=>'<tr><td class="mono">'+esc(e.seq)+'</td><td class="mono" style="font-size:11.5px;">'+esc((e.time||'').replace('T',' ').slice(0,19))+'</td><td>'+esc(e.note)+'</td></tr>').join('')+
+       '</tbody></table>';
+  }
+  el.innerHTML=h;
+  el.querySelectorAll('.status-sel').forEach(s=>s.addEventListener('change',()=>{
+    const i=+s.dataset.idx; if(data.findings[i]){ data.findings[i].status=s.value; store.set(DKEY,data); renderReport(); }
+  }));
+}
+
+/* ---------- exports ---------- */
+function reportText(){
+  const a=data.auth||{}; const c={crit:0,weak:0,strong:0,info:0}; data.findings.forEach(f=>c[f.posture]++);
+  const L=['RAMPART · PHYSICAL SECURITY ASSESSMENT', (a.eng||'Assessment Report'),'',
+    'Client: '+(a.client||'-'),'Assessor: '+(a.assessor||'-'),
+    'Authorized by: '+[a['auth-name'],a['auth-title']].filter(Boolean).join(', '),
+    'Window: '+(a['d-start']||'-')+' to '+(a['d-end']||'-'),
+    'Compiled: '+new Date().toISOString().slice(0,10),'',
+    'SUMMARY: '+c.crit+' critical, '+c.weak+' medium, '+c.strong+' adequate, '+c.info+' informational ('+data.findings.length+' total)',''];
+  [['crit','CRITICAL'],['weak','MEDIUM'],['strong','ADEQUATE'],['info','INFORMATIONAL']].forEach(([p,t])=>{
+    const list=data.findings.filter(f=>f.posture===p); if(!list.length) return;
+    L.push('['+t+']');
+    list.forEach(f=>{ L.push('  ['+(f.status||'open').toUpperCase()+'] '+f.loc+' - '+f.item+(f.extra?' ('+f.extra+')':'')); if(f.note) L.push('    Note: '+f.note); if(f.fix) L.push('    Recommendation: '+f.fix); L.push('    Source: '+f.source); L.push(''); });
+  });
+  if(data.log.length){ L.push('APPENDIX · ACTIVITY LOG ('+data.log.length+' entries, hash chained):'); data.log.forEach(e=>L.push('  '+e.seq+'. ['+(e.time||'')+'] '+e.note)); }
+  return L.join('\n');
+}
+$('copy').onclick=async()=>{ try{ await navigator.clipboard.writeText(reportText()); alert('Report copied to clipboard.'); }catch(e){ alert('Copy failed. Use Export JSON.'); } };
+$('export').onclick=()=>{ const b=new Blob([JSON.stringify(data,null,2)],{type:'application/json'}); const x=document.createElement('a'); x.href=URL.createObjectURL(b); x.download='docket-report.json'; x.click(); URL.revokeObjectURL(x.href); };
+$('print').onclick=()=>{ document.querySelector('.tab[data-tab="report"]').click(); window.print(); };
+
+/* ---------- tabs ---------- */
+const tabs=document.querySelectorAll('.tab');
+tabs.forEach(t=>t.addEventListener('click',()=>{
+  tabs.forEach(x=>x.setAttribute('aria-selected',x===t?'true':'false'));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active',p.id===t.dataset.tab));
+  if(t.dataset.tab==='report') renderReport();
+}));
+
+renderSources(); renderReport();
+</script>
+</body>
+</html>

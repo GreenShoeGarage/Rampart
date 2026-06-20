@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QUARTERMASTER - Rampart Field Kit</title>
+<meta name="description" content="Pre-engagement readiness and loadout checklist. Authorization first, scope gated.">
+<link rel="stylesheet" href="theme.css">
+<style>
+  .ready { display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
+  .ready .gauge { font-family:var(--display); font-weight:800; font-size:34px; letter-spacing:0.04em; color:var(--cream); }
+  .ready .state { font-family:var(--mono); font-size:12px; letter-spacing:0.16em; text-transform:uppercase; padding:6px 12px; border-radius:2px; }
+  .ready .state.go { color:var(--olive); border:1px solid var(--olive); }
+  .ready .state.no { color:var(--amber); border:1px solid var(--amber); }
+  .cat-h { display:flex; align-items:center; gap:12px; margin:0 0 4px; }
+  .cat-h h3 { margin:0; }
+  .gate-pill { font-family:var(--mono); font-size:10px; letter-spacing:0.14em; text-transform:uppercase; color:var(--amber); border:1px solid var(--amber); border-radius:2px; padding:2px 7px; }
+  .gate-note { font-size:13px; color:var(--amber); margin:2px 0 10px; }
+  .item { display:flex; align-items:flex-start; gap:11px; padding:9px 0; border-bottom:1px solid var(--line); }
+  .item input[type=checkbox]{ width:18px; height:18px; margin-top:2px; accent-color:var(--rust); flex:none; }
+  .item .nm { flex:1; }
+  .item .nm .caution { display:block; font-size:12px; color:var(--amber); margin-top:2px; }
+  .item .nm .ser { margin-top:6px; }
+  .item .nm .ser input { font-size:12.5px; padding:5px 8px; }
+  .item.packed .nm > .lab { color:var(--faint); text-decoration:line-through; }
+  .item .rm { color:var(--faint); cursor:pointer; background:none; border:0; font-family:var(--mono); font-size:14px; }
+  .item .rm:hover { color:var(--crimson); }
+  .additem { display:flex; gap:8px; margin-top:12px; }
+  .additem input { flex:1; }
+  @media print {
+    body{ background:#fff !important; color:#111 !important; } body::before{ display:none !important; }
+    .band,.masthead,.foot,.additem,.rm,.actionbar { display:none !important; }
+    .card{ background:#fff !important; border:1px solid #ccc !important; }
+    h3,.gauge,.nm .lab{ color:#111 !important; } .item .nm .caution{ color:#a60 !important; }
+  }
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#15191c">
+<link rel="apple-touch-icon" href="icon-192.png">
+<script src="gate.js"></script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</head>
+<body>
+<div class="band"><span>Authorized assessment use only</span></div>
+
+<header class="masthead">
+  <div class="wrap">
+    <div class="crumbs"><a href="index.html">Rampart</a><span class="sep">/</span><span>Mod 10</span><span class="sep">/</span><span>Quartermaster</span></div>
+    <div class="kit-title"><span class="name">Quartermaster</span><span class="no">033 · 10</span></div>
+    <div class="kit-sub">Loadout &amp; Readiness</div>
+    <p class="kit-lede">Pack the bag and confirm the engagement is ready to run. The most important item on the list is the signed authorization. Carry and use only what your authorization and rules of engagement permit.</p>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="section">
+    <div class="card">
+      <div class="ready">
+        <span class="gauge" id="gauge">0 / 0</span>
+        <span class="state" id="state"></span>
+        <div class="row-actions actionbar" style="margin-left:auto;">
+          <button class="btn ghost sm" id="print">Print list</button>
+          <button class="btn ghost sm" id="export">Export JSON</button>
+          <button class="btn ghost sm" id="reset">Reset to default</button>
+        </div>
+      </div>
+    </div>
+    <div id="kit"></div>
+  </section>
+</main>
+
+<footer class="wrap foot">
+  <span><a href="index.html" style="color:var(--mute);">&larr; Back to kit</a></span>
+  <span>Quartermaster · Mod 10</span>
+</footer>
+
+<script>
+const $ = id => document.getElementById(id);
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+const store = {
+  get(k,d){ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):d; }catch(e){ return d; } },
+  set(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){} }
+};
+
+/* ---------- default loadout (names only, scope gated, authorization first) ---------- */
+function mk(name, opt){ return Object.assign({ name, packed:false, sensitive:false, caution:'', note:'' }, opt||{}); }
+function DEFAULT(){ return [
+  { cat:'Authorization & legal', core:true, items:[
+    mk('Signed authorization letter, printed copy per operator'),
+    mk('Authorization loaded in Safeconduct, ready to present'),
+    mk('Rules of engagement document on hand'),
+    mk('Scope boundaries, in and out, confirmed'),
+    mk('Get out of jail contact, callable right now'),
+    mk('Client point of contact and escalation chain'),
+    mk('Photo ID for each operator'),
+    mk('Company letter or proof of insurance, if required')
+  ]},
+  { cat:'Safety & coordination', items:[
+    mk('Safety brief completed with the team'),
+    mk('Check in schedule and duress signal agreed'),
+    mk('Comms gear, radios or phones, with spare batteries'),
+    mk('First aid kit'),
+    mk('Flashlight or headlamp'),
+    mk('Weather appropriate clothing'),
+    mk('Contingency cash'),
+    mk('Personal phone charged, team contacts saved'),
+    mk('Vehicle fuel and parking plan')
+  ]},
+  { cat:'Documentation', items:[
+    mk('Phone for photos and notes'),
+    mk('Overt or body camera, as authorized'),
+    mk('Covert camera', {caution:'Only if covert recording is permitted in the ROE.'}),
+    mk('Notebook and pen'),
+    mk('Power bank and spare storage and batteries'),
+    mk('Footprint and Sweep findings synced before departure')
+  ]},
+  { cat:'Entry', gated:true, items:[
+    mk('Lockpick set'),
+    mk('Bypass tools'),
+    mk('Shims and jigglers'),
+    mk('Under door tool'),
+    mk('Latch slip tool'),
+    mk('Travel hook kit'),
+    mk('Hand tools, drivers and allen keys')
+  ]},
+  { cat:'Credential / RFID', gated:true, items:[
+    mk('RFID research and cloning hardware, e.g. Proxmark3', {sensitive:true}),
+    mk('Multi tool RF device, e.g. Flipper Zero', {sensitive:true}),
+    mk('Long range reader', {sensitive:true, caution:'Only if covert credential capture is explicitly in scope.'}),
+    mk('Blank cards and fobs'),
+    mk('Reader and writer cables and power')
+  ]},
+  { cat:'Cyber-physical bridge', gated:true, items:[
+    mk('Drop box or network implant', {sensitive:true, caution:'Only if network access is in scope. Recover before exit.'}),
+    mk('Rogue access point hardware', {sensitive:true, caution:'Only if wireless testing is in scope.'}),
+    mk('Network cables, taps, and USB to Ethernet adapters'),
+    mk('Out of band uplink for the drop box')
+  ]},
+  { cat:'Pretext', gated:true, items:[
+    mk('Hi vis vest and work apparel'),
+    mk('Clipboard and printed work order', {caution:'Only as authorized in the ROE.'}),
+    mk('Branded apparel matching the cover', {caution:'Only as authorized.'}),
+    mk('Props consistent with the cover, tools of the trade'),
+    mk('Pretext badge or credential', {caution:'Only if explicitly authorized in writing.'})
+  ]},
+  { cat:'Chain of custody & wrap-up', items:[
+    mk('Faraday or evidence bags for captured media and devices'),
+    mk('Tamper evident bags and labels'),
+    mk('Serial log for all sensitive gear'),
+    mk('Retrieval plan for any deployed devices'),
+    mk('Debrief notes template')
+  ]}
+];}
+
+const KEY='rampart.quartermaster.loadout';
+let kit = store.get(KEY, null) || DEFAULT();
+
+function save(){ store.set(KEY, kit); }
+
+function render(){
+  let total=0, packed=0, coreTotal=0, corePacked=0;
+  kit.forEach(c=>c.items.forEach(it=>{ total++; if(it.packed) packed++; if(c.core){ coreTotal++; if(it.packed) corePacked++; } }));
+  $('gauge').textContent = packed+' / '+total;
+  const ready = coreTotal>0 && corePacked===coreTotal;
+  $('state').className='state '+(ready?'go':'no');
+  $('state').textContent = ready ? 'Authorization confirmed' : 'Not ready, authorization incomplete';
+
+  $('kit').innerHTML = kit.map((c,ci)=>{
+    const rows = c.items.map((it,ii)=>{
+      const ser = it.sensitive ? '<div class="ser"><input data-note="'+ci+'.'+ii+'" placeholder="Serial / chain of custody note" value="'+esc(it.note||'')+'"></div>' : '';
+      const caution = it.caution ? '<span class="caution">'+esc(it.caution)+'</span>' : '';
+      return '<div class="item'+(it.packed?' packed':'')+'">'+
+        '<input type="checkbox" data-chk="'+ci+'.'+ii+'"'+(it.packed?' checked':'')+'>'+
+        '<div class="nm"><span class="lab">'+esc(it.name)+'</span>'+caution+ser+'</div>'+
+        '<button class="rm" data-rm="'+ci+'.'+ii+'" title="Remove">&times;</button></div>';
+    }).join('');
+    return '<div class="card"><div class="cat-h"><h3>'+esc(c.cat)+'</h3>'+(c.gated?'<span class="gate-pill">Scope gated</span>':'')+(c.core?'<span class="gate-pill" style="color:var(--rust);border-color:var(--rust);">Required</span>':'')+'</div>'+
+      (c.gated?'<div class="gate-note">Pack only the openings, systems, and methods named in your authorization.</div>':'')+
+      rows+
+      '<div class="additem"><input placeholder="Add item to '+esc(c.cat)+'" data-add="'+ci+'"><button class="btn ghost sm" data-addbtn="'+ci+'">Add</button></div></div>';
+  }).join('');
+
+  $('kit').querySelectorAll('[data-chk]').forEach(b=>b.addEventListener('change',()=>{
+    const [ci,ii]=b.dataset.chk.split('.').map(Number); kit[ci].items[ii].packed=b.checked; save(); render();
+  }));
+  $('kit').querySelectorAll('[data-note]').forEach(inp=>inp.addEventListener('input',()=>{
+    const [ci,ii]=inp.dataset.note.split('.').map(Number); kit[ci].items[ii].note=inp.value; save();
+  }));
+  $('kit').querySelectorAll('[data-rm]').forEach(b=>b.addEventListener('click',()=>{
+    const [ci,ii]=b.dataset.rm.split('.').map(Number); kit[ci].items.splice(ii,1); save(); render();
+  }));
+  $('kit').querySelectorAll('[data-addbtn]').forEach(b=>b.addEventListener('click',()=>{
+    const ci=+b.dataset.addbtn; const inp=$('kit').querySelector('[data-add="'+ci+'"]'); const v=inp.value.trim();
+    if(!v) return; kit[ci].items.push(mk(v)); save(); render();
+  }));
+}
+
+$('reset').onclick=()=>{ if(confirm('Reset the loadout to the default checklist? This clears your checks and added items.')){ kit=DEFAULT(); save(); render(); } };
+$('export').onclick=()=>{ const b=new Blob([JSON.stringify(kit,null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='quartermaster-loadout.json'; a.click(); URL.revokeObjectURL(a.href); };
+$('print').onclick=()=>window.print();
+render();
+</script>
+</body>
+</html>

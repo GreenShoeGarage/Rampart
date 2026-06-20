@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TUMBLER - Rampart Field Kit</title>
+<meta name="description" content="Lock anatomy, hardware grades, and an inventory of your own cylinders.">
+<link rel="stylesheet" href="theme.css">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#15191c">
+<link rel="apple-touch-icon" href="icon-192.png">
+<script src="gate.js"></script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</head>
+<body>
+<div class="band"><span>Authorized assessment use only</span></div>
+
+<header class="masthead">
+  <div class="wrap">
+    <div class="crumbs"><a href="index.html">Rampart</a><span class="sep">/</span><span>Mod 01</span><span class="sep">/</span><span>Tumbler</span></div>
+    <div class="kit-title">
+      <span class="name">Tumbler</span>
+      <span class="no">033 · 01</span>
+    </div>
+    <div class="kit-sub">Lock Anatomy &amp; Inventory</div>
+    <p class="kit-lede">A reference for how cylinders work and how they are graded, plus a place to inventory the locks you own or manage and the keys that operate them. Built for documentation and asset control, not entry.</p>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" aria-selected="true"  data-tab="anatomy">Anatomy</button>
+    <button class="tab" role="tab" aria-selected="false" data-tab="grades">Grades</button>
+    <button class="tab" role="tab" aria-selected="false" data-tab="inventory">Inventory</button>
+    <button class="tab" role="tab" aria-selected="false" data-tab="keying">Keying chart</button>
+  </div>
+
+  <!-- ANATOMY -->
+  <section class="panel active" id="anatomy">
+    <div class="two-col">
+      <div class="card">
+        <h3>The pin tumbler</h3>
+        <p style="color:var(--mute);font-size:15px;">A pin tumbler cylinder is a row of spring loaded pin stacks sitting across a rotating plug. Each stack has a lower key pin and an upper driver pin. With no key, the driver pins cross the gap between plug and housing and jam the plug in place.</p>
+        <p style="color:var(--mute);font-size:15px;">The correct key lifts every stack so the split between key pin and driver pin lines up exactly with the shear line, the seam where the plug meets the housing. With all the splits at the seam, the plug turns. That alignment is the entire principle.</p>
+        <div class="note">The diagram is conceptual. Tumbler documents and grades hardware. It does not teach defeat techniques.</div>
+      </div>
+      <div class="svg-wrap" aria-label="Pin tumbler cross section diagram">
+        <svg viewBox="0 0 360 240" role="img">
+          <defs>
+            <style>
+              .lbl{font-family:'IBM Plex Mono',monospace;font-size:9px;fill:#9a948a;letter-spacing:.08em;}
+              .seam{stroke:#c25b3a;stroke-width:1.4;stroke-dasharray:5 4;}
+              .hull{fill:#262d33;stroke:#4c5a63;stroke-width:1.4;}
+              .plug{fill:#1d2327;stroke:#4c5a63;stroke-width:1.4;}
+              .driver{fill:#6d8a98;}
+              .keypin{fill:#d99a3c;}
+              .spring{stroke:#9a948a;stroke-width:1;fill:none;}
+              .key{fill:#84955f;stroke:#5f6e45;stroke-width:1;}
+            </style>
+          </defs>
+          <!-- housing -->
+          <rect class="hull" x="40" y="30" width="280" height="120" rx="3"/>
+          <!-- plug -->
+          <rect class="plug" x="40" y="92" width="280" height="58" rx="3"/>
+          <!-- shear line -->
+          <line class="seam" x1="40" y1="92" x2="320" y2="92"/>
+          <text class="lbl" x="324" y="95">shear line</text>
+          <!-- pin stacks -->
+          <g>
+            <!-- positions -->
+            <!-- stack template repeated -->
+            <!-- 1 -->
+            <path class="spring" d="M70,36 l8,4 l-8,4 l8,4 l-8,4 l8,4"/>
+            <rect class="driver" x="66" y="62" width="16" height="30"/>
+            <rect class="keypin" x="66" y="92" width="16" height="34"/>
+            <!-- 2 -->
+            <path class="spring" d="M118,36 l8,4 l-8,4 l8,4 l-8,4 l8,4"/>
+            <rect class="driver" x="114" y="62" width="16" height="22"/>
+            <rect class="keypin" x="114" y="84" width="16" height="42"/>
+            <!-- 3 -->
+            <path class="spring" d="M166,36 l8,4 l-8,4 l8,4 l-8,4 l8,4"/>
+            <rect class="driver" x="162" y="62" width="16" height="34"/>
+            <rect class="keypin" x="162" y="96" width="16" height="30"/>
+            <!-- 4 -->
+            <path class="spring" d="M214,36 l8,4 l-8,4 l8,4 l-8,4 l8,4"/>
+            <rect class="driver" x="210" y="62" width="16" height="18"/>
+            <rect class="keypin" x="210" y="80" width="16" height="46"/>
+            <!-- 5 -->
+            <path class="spring" d="M262,36 l8,4 l-8,4 l8,4 l-8,4 l8,4"/>
+            <rect class="driver" x="258" y="62" width="16" height="28"/>
+            <rect class="keypin" x="258" y="90" width="16" height="36"/>
+          </g>
+          <!-- key -->
+          <path class="key" d="M44,150 L300,150 L300,138
+            L286,138 L280,148 L262,128 L256,148 L238,130 L232,148 L214,126 L208,148 L190,132 L184,148 L166,128 L160,148 L142,150 Z"/>
+          <circle class="key" cx="40" cy="160" r="16"/>
+          <text class="lbl" x="92" y="58">driver pins</text>
+          <text class="lbl" x="92" y="120" fill="#d99a3c">key pins</text>
+          <text class="lbl" x="250" y="172">key (bitting lifts each stack)</text>
+        </svg>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Security pins, in brief</h3>
+      <p style="color:var(--mute);font-size:15px;">Higher grade cylinders replace plain driver pins with shaped ones such as spool, serrated, or mushroom pins. These shapes make a cylinder resist manipulation and raise the bar on covert entry, which is why they show up on better hardware. For assessment purposes the takeaway is simple: the presence of security pins and a high grade body is a sign of a serious lock, and their absence on a sensitive opening is a finding.</p>
+    </div>
+  </section>
+
+  <!-- GRADES -->
+  <section class="panel" id="grades">
+    <div class="card">
+      <h3>ANSI / BHMA grades</h3>
+      <p style="color:var(--mute);font-size:15px;">North American locksets are graded by ANSI/BHMA against cycle and strength testing. Grade is the fastest way to judge whether the hardware on an opening matches its risk.</p>
+      <table class="tbl">
+        <thead><tr><th>Grade</th><th>Typical use</th><th>Cycle target</th><th class="mono">Posture</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">Grade 1</td><td>Heavy commercial, exterior, high traffic</td><td>800,000+</td><td><span class="pill strong">Highest</span></td></tr>
+          <tr><td class="mono">Grade 2</td><td>Light commercial, interior</td><td>400,000</td><td><span class="pill weak">Medium</span></td></tr>
+          <tr><td class="mono">Grade 3</td><td>Residential, low security</td><td>200,000</td><td><span class="pill crit">Lowest</span></td></tr>
+        </tbody>
+      </table>
+      <div class="note warn">A Grade 3 lockset on a sensitive exterior opening is a documentable mismatch between hardware and risk. Note it and recommend an uprated set.</div>
+    </div>
+
+    <div class="card">
+      <h3>Keyway and key control</h3>
+      <p style="color:var(--mute);font-size:15px;">Beyond the body, two things govern how controllable a system is over time. An open keyway uses blanks anyone can buy, so copies multiply quietly. A restricted or patented keyway limits who can cut a blank, which keeps the key population accountable. Strong key control is often worth more to a client than a stronger cylinder, because it governs the slow leak of copies rather than a single point of failure.</p>
+      <table class="tbl">
+        <thead><tr><th>Attribute</th><th>Lower control</th><th>Higher control</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">Blanks</td><td>Open, widely sold</td><td>Restricted or patented</td></tr>
+          <tr><td class="mono">Duplication</td><td>Any kiosk</td><td>Authorized, signed for</td></tr>
+          <tr><td class="mono">Records</td><td>None</td><td>Bitting and key holders on file</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- INVENTORY -->
+  <section class="panel" id="inventory">
+    <div class="card">
+      <h3>Lock inventory</h3>
+      <p style="color:var(--mute);font-size:15px;">Record the cylinders you own or manage. Everything stays in this browser. Use export to keep a copy with your site records.</p>
+      <div class="two-col">
+        <label class="fld"><span>Location / opening</span><input id="f-loc" placeholder="e.g. North entry, main door"></label>
+        <label class="fld"><span>Type</span>
+          <select id="f-type">
+            <option>Mortise cylinder</option><option>Rim cylinder</option>
+            <option>Key in knob</option><option>Lever set</option>
+            <option>Deadbolt</option><option>Padlock</option><option>Cam lock</option><option>Other</option>
+          </select>
+        </label>
+      </div>
+      <div class="two-col">
+        <label class="fld"><span>Grade</span>
+          <select id="f-grade"><option>Grade 1</option><option>Grade 2</option><option>Grade 3</option><option>Unknown</option></select>
+        </label>
+        <label class="fld"><span>Keyway control</span>
+          <select id="f-key"><option>Restricted / patented</option><option>Open</option><option>Unknown</option></select>
+        </label>
+      </div>
+      <div class="two-col">
+        <label class="fld"><span>Keys issued</span><input id="f-count" type="number" min="0" placeholder="0"></label>
+        <label class="fld"><span>Notes</span><input id="f-note" placeholder="Optional"></label>
+      </div>
+      <div class="row-actions"><button class="btn" id="add">Add lock</button></div>
+    </div>
+
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+        <h3 style="margin:0;">Recorded cylinders</h3>
+        <div class="row-actions" style="margin:0;">
+          <button class="btn ghost sm" id="export">Export JSON</button>
+          <button class="btn ghost sm" id="clear">Clear all</button>
+        </div>
+      </div>
+      <div id="inv-body" style="margin-top:14px;"></div>
+    </div>
+  </section>
+
+  <!-- KEYING -->
+  <section class="panel" id="keying">
+    <div class="card">
+      <h3>Keying chart</h3>
+      <p style="color:var(--mute);font-size:15px;">Document which keys operate which openings in a system you manage. Add the keys across the top and the openings down the side, then mark each cell that opens. This records your own master plan for handover and audit. It is a register, not a deriver.</p>
+      <div class="two-col">
+        <label class="fld"><span>Add key (column)</span><input id="k-key" placeholder="e.g. GMK, MK-A, Change 14"></label>
+        <label class="fld"><span>Add opening (row)</span><input id="k-door" placeholder="e.g. North entry"></label>
+      </div>
+      <div class="row-actions">
+        <button class="btn sm" id="k-add-key">Add key</button>
+        <button class="btn sm ghost" id="k-add-door">Add opening</button>
+        <button class="btn sm ghost" id="k-clear">Clear chart</button>
+      </div>
+    </div>
+    <div class="card">
+      <div id="chart-body" style="overflow:auto;"></div>
+    </div>
+  </section>
+</main>
+
+<footer class="wrap foot">
+  <span><a href="index.html" style="color:var(--mute);">&larr; Back to kit</a></span>
+  <span>Tumbler · Mod 01</span>
+</footer>
+
+<script>
+/* ---------- tabs ---------- */
+const tabs = document.querySelectorAll('.tab');
+tabs.forEach(t => t.addEventListener('click', () => {
+  tabs.forEach(x => x.setAttribute('aria-selected', x === t ? 'true' : 'false'));
+  document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === t.dataset.tab));
+}));
+
+/* ---------- safe storage ---------- */
+const store = {
+  get(k, d){ try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch(e){ return d; } },
+  set(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} }
+};
+
+/* ---------- inventory ---------- */
+const KEY_INV = 'rampart.tumbler.inventory';
+let inv = store.get(KEY_INV, []);
+const invBody = document.getElementById('inv-body');
+
+function gradePill(g){
+  if(g==='Grade 1') return '<span class="pill strong">'+g+'</span>';
+  if(g==='Grade 2') return '<span class="pill weak">'+g+'</span>';
+  if(g==='Grade 3') return '<span class="pill crit">'+g+'</span>';
+  return '<span class="pill info">'+g+'</span>';
+}
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+let editIdx = -1;
+const addBtn = document.getElementById('add');
+function clearForm(){
+  ['f-loc','f-count','f-note'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('f-type').selectedIndex=0; document.getElementById('f-grade').selectedIndex=0; document.getElementById('f-key').selectedIndex=0;
+  editIdx=-1; addBtn.textContent='Add lock';
+}
+function loadForm(r){
+  document.getElementById('f-loc').value=r.loc||''; document.getElementById('f-type').value=r.type||'';
+  document.getElementById('f-grade').value=r.grade||''; document.getElementById('f-key').value=r.key||'';
+  document.getElementById('f-count').value=r.count||''; document.getElementById('f-note').value=r.note||'';
+}
+function renderInv(){
+  if(!inv.length){ invBody.innerHTML = '<div class="empty">No cylinders recorded yet. Add one above.</div>'; return; }
+  let h = '<table class="tbl"><thead><tr><th>Opening</th><th>Type</th><th>Grade</th><th>Keyway</th><th class="mono">Keys</th><th></th></tr></thead><tbody>';
+  inv.forEach((r,i) => {
+    h += '<tr><td>'+esc(r.loc)+(r.note?'<br><span style="color:var(--faint);font-size:12px;">'+esc(r.note)+'</span>':'')+'</td>'+
+         '<td>'+esc(r.type)+'</td><td>'+gradePill(esc(r.grade))+'</td><td>'+esc(r.key)+'</td>'+
+         '<td class="mono">'+esc(r.count||'0')+'</td>'+
+         '<td style="white-space:nowrap;"><button class="btn ghost sm" data-edit="'+i+'">Edit</button> <button class="btn ghost sm" data-del="'+i+'">Remove</button></td></tr>';
+  });
+  invBody.innerHTML = h + '</tbody></table>';
+  invBody.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', () => {
+    inv.splice(+b.dataset.del,1); store.set(KEY_INV, inv); if(editIdx===+b.dataset.del) clearForm(); renderInv();
+  }));
+  invBody.querySelectorAll('[data-edit]').forEach(b => b.addEventListener('click', () => {
+    editIdx=+b.dataset.edit; loadForm(inv[editIdx]); addBtn.textContent='Update lock';
+    document.getElementById('f-loc').scrollIntoView({behavior:'smooth',block:'center'});
+  }));
+}
+addBtn.addEventListener('click', () => {
+  const loc = document.getElementById('f-loc').value.trim();
+  if(!loc){ document.getElementById('f-loc').focus(); return; }
+  const rec = {
+    loc, type: document.getElementById('f-type').value,
+    grade: document.getElementById('f-grade').value, key: document.getElementById('f-key').value,
+    count: document.getElementById('f-count').value, note: document.getElementById('f-note').value.trim()
+  };
+  if(editIdx>=0) inv[editIdx]=rec; else inv.push(rec);
+  store.set(KEY_INV, inv);
+  clearForm();
+  renderInv();
+});
+document.getElementById('clear').addEventListener('click', () => {
+  if(confirm('Remove all recorded cylinders?')){ inv=[]; store.set(KEY_INV, inv); renderInv(); }
+});
+document.getElementById('export').addEventListener('click', () => {
+  const blob = new Blob([JSON.stringify(inv,null,2)], {type:'application/json'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = 'tumbler-inventory.json'; a.click(); URL.revokeObjectURL(a.href);
+});
+renderInv();
+
+/* ---------- keying chart ---------- */
+const KEY_CHART = 'rampart.tumbler.chart';
+let chart = store.get(KEY_CHART, { keys: [], doors: [], cells: {} });
+const chartBody = document.getElementById('chart-body');
+
+function renderChart(){
+  if(!chart.keys.length && !chart.doors.length){ chartBody.innerHTML = '<div class="empty">Add keys and openings to build the chart.</div>'; return; }
+  let h = '<table class="tbl"><thead><tr><th>Opening \\ Key</th>';
+  chart.keys.forEach((k,ki) => h += '<th class="mono">'+esc(k)+' <button class="btn ghost sm" data-delkey="'+ki+'" style="padding:1px 6px;">×</button></th>');
+  h += '</tr></thead><tbody>';
+  chart.doors.forEach((d,di) => {
+    h += '<tr><td>'+esc(d)+' <button class="btn ghost sm" data-deldoor="'+di+'" style="padding:1px 6px;">×</button></td>';
+    chart.keys.forEach((k,ki) => {
+      const id = di+':'+ki; const on = chart.cells[id];
+      h += '<td style="text-align:center;cursor:pointer;'+(on?'background:rgba(132,149,95,0.16);':'')+'" data-cell="'+id+'">'+(on?'<span style="color:var(--olive);">●</span>':'<span style="color:var(--faint);">·</span>')+'</td>';
+    });
+    h += '</tr>';
+  });
+  chartBody.innerHTML = h + '</tbody></table>';
+  chartBody.querySelectorAll('[data-cell]').forEach(c => c.addEventListener('click', () => {
+    const id = c.dataset.cell; chart.cells[id] = !chart.cells[id]; store.set(KEY_CHART, chart); renderChart();
+  }));
+  chartBody.querySelectorAll('[data-delkey]').forEach(b => b.addEventListener('click', () => {
+    chart.keys.splice(+b.dataset.delkey,1); chart.cells={}; store.set(KEY_CHART, chart); renderChart();
+  }));
+  chartBody.querySelectorAll('[data-deldoor]').forEach(b => b.addEventListener('click', () => {
+    chart.doors.splice(+b.dataset.deldoor,1); chart.cells={}; store.set(KEY_CHART, chart); renderChart();
+  }));
+}
+document.getElementById('k-add-key').addEventListener('click', () => {
+  const v = document.getElementById('k-key').value.trim(); if(!v) return;
+  chart.keys.push(v); document.getElementById('k-key').value=''; store.set(KEY_CHART, chart); renderChart();
+});
+document.getElementById('k-add-door').addEventListener('click', () => {
+  const v = document.getElementById('k-door').value.trim(); if(!v) return;
+  chart.doors.push(v); document.getElementById('k-door').value=''; store.set(KEY_CHART, chart); renderChart();
+});
+document.getElementById('k-clear').addEventListener('click', () => {
+  if(confirm('Clear the whole chart?')){ chart={keys:[],doors:[],cells:{}}; store.set(KEY_CHART, chart); renderChart(); }
+});
+renderChart();
+</script>
+</body>
+</html>
