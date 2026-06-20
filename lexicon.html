@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<!-- LEXICON (Field Instrument 036, Mod 18) - Rampart Field Kit. License: GPL-3.0 -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LEXICON - Rampart Field Kit</title>
+<meta name="description" content="Doctrine and glossary reference for physical security: CPTED, layered defense, credentials, locks, and process.">
+<link rel="stylesheet" href="theme.css">
+<style>
+  .search { width:100%; font-size:16px; padding:13px 15px; }
+  .catbar { display:flex; flex-wrap:wrap; gap:8px; margin:16px 0; }
+  .catchip { font-family:var(--mono); font-size:11px; letter-spacing:0.08em; text-transform:uppercase; color:var(--mute); border:1px solid var(--line-2); border-radius:3px; padding:7px 12px; cursor:pointer; background:none; }
+  .catchip.on { border-color:var(--rust); color:var(--rust); }
+  .cat-h { font-family:var(--mono); font-size:10.5px; letter-spacing:0.16em; text-transform:uppercase; color:var(--steel); margin:24px 0 10px; padding-bottom:6px; border-bottom:1px solid var(--line); }
+  .term { padding:13px 0; border-bottom:1px solid var(--line); }
+  .term .t { font-family:var(--display); font-weight:700; font-size:17px; color:var(--cream); }
+  .term .d { color:var(--mute); font-size:14.5px; line-height:1.6; margin-top:4px; }
+  .term .see { font-family:var(--mono); font-size:10.5px; letter-spacing:0.08em; text-transform:uppercase; }
+  .term .see a { color:var(--steel); text-decoration:none; border-bottom:1px solid var(--line-2); }
+  .count { font-family:var(--mono); font-size:11px; color:var(--faint); }
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#15191c">
+<link rel="apple-touch-icon" href="icon-192.png">
+<script src="gate.js"></script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</head>
+<body>
+<div class="band"><span>Authorized assessment use only</span></div>
+
+<header class="masthead">
+  <div class="wrap">
+    <div class="crumbs"><a href="index.html">Rampart</a><span class="sep">/</span><span>Mod 18</span><span class="sep">/</span><span>Lexicon</span></div>
+    <div class="kit-title"><span class="name">Lexicon</span><span class="no">036 · 18</span></div>
+    <div class="kit-sub">Doctrine and Glossary</div>
+    <p class="kit-lede">The shared vocabulary behind the kit. The models a defender works from and the terms that turn up on a survey, defined plainly and pointed back at the module that puts each one to work.</p>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="section">
+    <input class="search" id="search" placeholder="Search terms and definitions" autocomplete="off">
+    <div class="catbar" id="catbar"></div>
+    <div class="count" id="count"></div>
+    <div id="list"></div>
+  </section>
+</main>
+
+<footer class="wrap foot">
+  <span><a href="index.html" style="color:var(--mute);">&larr; Back to kit</a></span>
+  <span>Lexicon · Mod 18</span>
+</footer>
+
+<script>
+const $ = id => document.getElementById(id);
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+const HREF={ Footprint:'footprint.html', Sweep:'sweep.html', Tumbler:'tumbler.html', Credential:'credential.html',
+  Aether:'aether.html', Touchstone:'touchstone.html', Safeconduct:'safeconduct.html', Docket:'docket.html',
+  Picket:'picket.html', Quartermaster:'quartermaster.html', Primer:'primer.html', Exhibit:'exhibit.html',
+  Flux:'flux.html', Lumen:'lumen.html', Gauge:'gauge.html', Remit:'remit.html', Debrief:'debrief.html' };
+
+const ENTRIES=[
+  // Doctrine and models
+  ['CPTED','Doctrine','Crime Prevention Through Environmental Design. Shaping a space to reduce the opportunity for crime through natural surveillance, natural access control, and territorial reinforcement.','Sweep'],
+  ['Natural surveillance','Doctrine','Arranging sightlines, lighting, and activity so that legitimate occupants naturally see what is happening, raising the chance an intruder is noticed.','Lumen'],
+  ['Natural access control','Doctrine','Using layout, paths, and barriers to guide people to intended entrances and discourage access to areas that should be private.'],
+  ['Territorial reinforcement','Doctrine','Clear markers of ownership, like signage, fencing, and maintained grounds, that signal a space is watched and cared for.'],
+  ['Defense in depth','Doctrine','Layering independent controls so that defeating one still leaves others in the way. Also called layered defense.','Primer'],
+  ['Deter, detect, delay, deny, respond','Doctrine','The five functions of a layered physical security program. Raise the cost of trying, notice the attempt, slow it down, stop it, and recover.','Primer'],
+  ['Security zones','Doctrine','Concentric rings of control from the public edge inward to the most sensitive asset, each with tighter access than the last.'],
+  ['Crown jewels','Doctrine','The assets whose loss would hurt most. Naming them decides where to weight the assessment.','Remit'],
+  ['Threat model','Doctrine','An explicit statement of who you are defending against and what they want, used to focus effort where it matters.','Remit'],
+  ['Adversary tier','Doctrine','A profile of capability and motivation, from opportunist to advanced and well resourced, that calibrates how hard the controls need to be.','Remit'],
+  ['Attack surface','Doctrine','The sum of the ways an adversary could attempt access, physical and human as well as technical.'],
+  ['Risk','Doctrine','The product of threat, vulnerability, and consequence. A weakness only matters in proportion to who would exploit it and what it would cost.','Docket'],
+
+  // Access control and credentials
+  ['Access control','Access','The systems and rules that decide who may pass a controlled point, and that record who did.','Credential'],
+  ['Credential','Access','The token a person presents to prove they may enter, such as a card, fob, mobile wallet, or biometric.','Credential'],
+  ['Proximity card','Access','A legacy 125 kHz contactless card. Widely deployed and easily copied, so it is best treated as a name badge, not a key.','Credential'],
+  ['Wiegand','Access','An old reader to panel wiring standard that is unauthenticated and unencrypted, a weak link behind the door.','Credential'],
+  ['OSDP','Access','Open Supervised Device Protocol, the modern reader to panel link. With Secure Channel it encrypts and supervises the connection.','Credential'],
+  ['MIFARE Classic','Access','A legacy smart card with broken cryptography. Treated as insecure for access control.','Credential'],
+  ['DESFire EV3','Access','A modern encrypted smart card suitable as a current access credential.','Credential'],
+  ['iCLASS SE and Seos','Access','Modern credential platforms that, configured correctly, provide encrypted authentication. Legacy iCLASS is weaker.','Credential'],
+  ['Mobile credential','Access','A credential carried in a phone wallet, often with hardware attestation, a strong option when implemented well.','Touchstone'],
+  ['Multi-factor','Access','Requiring more than one of something you have, know, or are, so a single stolen factor is not enough.'],
+  ['Anti-passback','Access','A rule that a credential cannot enter twice without leaving, which discourages handing a card back to a second person.','Sweep'],
+  ['Tailgating','Access','Following an authorized person through a controlled door without presenting a credential. Also called piggybacking.','Sweep'],
+  ['Mantrap','Access','An interlocked pair of doors or a portal that admits one person at a time, defeating tailgating at sensitive entries.','Sweep'],
+  ['Fail-safe and fail-secure','Access','How a powered lock behaves on power loss. Fail-safe unlocks for egress and life safety, fail-secure stays locked. The right choice depends on the door.','Sweep'],
+
+  // Locks and hardware
+  ['Pin tumbler','Locks','The common cylinder mechanism where stacked pins must align at the shear line. Quality and keyway control vary widely.','Tumbler'],
+  ['Deadbolt','Locks','A bolt thrown by a key or thumbturn with no spring, resisting force better than a latch.','Tumbler'],
+  ['Latchbolt','Locks','The spring bolt that holds a door closed in normal use. Without protection it is the weak point against manipulation.','Tumbler'],
+  ['Strike plate','Locks','The metal plate on the frame that receives the bolt. A reinforced strike and long screws resist kick-in.','Sweep'],
+  ['Keyway','Locks','The profile of the keyhole. A restricted or patented keyway controls who can cut keys and limits unauthorized copies.','Tumbler'],
+  ['Master keying','Locks','A keying plan where one key opens many locks and others open subsets. Powerful for management, and a single point of exposure if a master is lost.','Tumbler'],
+  ['Hardware grade','Locks','ANSI and BHMA Grade 1, 2, or 3, from heaviest duty to lightest. Grade 1 belongs on sensitive openings.','Tumbler'],
+  ['Maglock','Locks','An electromagnet that holds a door shut while powered. Strong, and a magnetometer reveals its field.','Flux'],
+  ['Electric strike','Locks','A powered strike that releases the latch on command, a common way to electrify an existing door.','Sweep'],
+  ['Panic hardware','Locks','A crash bar that allows immediate egress under load. Required on many exits and not to be defeated.'],
+  ['Security hinge','Locks','A hinge with set screws or a pin that resists removal, needed where hinges are on the exterior.','Sweep'],
+  ['Door gap','Locks','The clearance around a door leaf. An oversized gap exposes the latch to manipulation and shimming.','Gauge'],
+
+  // Perimeter and surroundings
+  ['Perimeter','Perimeter','The outer boundary of a site and the first layer of control. Its strength sets the tone for everything inside.','Sweep'],
+  ['Bollard','Perimeter','A post that stops or channels vehicles, protecting entrances and standoff zones.','Sweep'],
+  ['Standoff distance','Perimeter','The cleared distance kept between an asset and where a vehicle or person can reach, to buy reaction time.','Gauge'],
+  ['Clear zone','Perimeter','A maintained open strip along a barrier with no climb aids or cover, so an approach is visible.'],
+  ['Lighting uniformity','Perimeter','How evenly an area is lit. A consistent wash matters more than peak brightness, since dark pockets defeat lit ground.','Lumen'],
+  ['Glare','Perimeter','Excess brightness that blinds rather than reveals, a lighting fault that can aid concealment.','Lumen'],
+
+  // Detection
+  ['Video surveillance','Detection','Cameras and recording used to deter, detect, and document. Coverage is only as good as its blind spots.','Sweep'],
+  ['Blind spot','Detection','An area no camera or observer covers. Mapping blind spots is core to a survey.','Sweep'],
+  ['Door contact','Detection','A reed switch held by a magnet that signals when a door or window opens. Its magnet is detectable.','Flux'],
+  ['Intrusion detection','Detection','Sensors and alarms that announce an attempt, the detect layer of the model.','Picket'],
+  ['Duress alarm','Detection','A discreet signal a person can trigger under coercion to summon help without escalating.','Safeconduct'],
+
+  // Human factors
+  ['Social engineering','Human','Manipulating people rather than defeating hardware, often the most reliable way past a control.','Primer'],
+  ['Pretext','Human','A fabricated role or story that makes an approach plausible, such as posing as a vendor or contractor.','Footprint'],
+  ['Challenge culture','Human','A workplace norm where staff politely verify unfamiliar people in controlled areas rather than assume belonging.'],
+  ['Visitor management','Human','The process of verifying, badging, and escorting visitors so that access is accountable.','Sweep'],
+
+  // Process and assessment
+  ['Red team','Process','An authorized adversarial assessment that tests defenses end to end from the attacker point of view.','Remit'],
+  ['Physical penetration test','Process','A scoped, authorized attempt to reach a defined objective, to measure and improve real defenses.','Safeconduct'],
+  ['Rules of engagement','Process','The agreed boundaries of an engagement: hours, permitted and forbidden methods, safe words, and escalation.','Safeconduct'],
+  ['Scope','Process','The explicit in and out boundaries of what may be assessed. Everything outside it is off limits.','Safeconduct'],
+  ['Authorization letter','Process','The signed document proving the work is sanctioned, carried at all times. Sometimes called a get out of jail letter.','Safeconduct'],
+  ['Chain of custody','Process','An unbroken, documented record of who held evidence and when, so its integrity can be trusted.','Exhibit'],
+  ['Finding','Process','A recorded observation with a posture and a recommended fix, the unit a report is built from.','Docket'],
+  ['Posture','Process','The rating of a finding, from critical through medium to adequate or informational.','Docket'],
+  ['Remediation','Process','The fix for a finding and the act of tracking it to completion.','Debrief'],
+  ['Hotwash','Process','The immediate after-action review that captures what held, what failed, and what was learned.','Debrief'],
+  ['OSINT','Process','Open-source intelligence, the public information an adversary can gather before ever approaching.','Footprint']
+];
+
+const CATS=['All','Doctrine','Access','Locks','Perimeter','Detection','Human','Process'];
+const CATLABEL={All:'All',Doctrine:'Doctrine and models',Access:'Access and credentials',Locks:'Locks and hardware',Perimeter:'Perimeter',Detection:'Detection',Human:'Human factors',Process:'Process'};
+let activeCat='All';
+
+$('catbar').innerHTML = CATS.map(c=>'<button class="catchip'+(c==='All'?' on':'')+'" data-cat="'+c+'">'+esc(CATLABEL[c])+'</button>').join('');
+$('catbar').querySelectorAll('[data-cat]').forEach(b=>b.addEventListener('click',()=>{
+  activeCat=b.dataset.cat;
+  $('catbar').querySelectorAll('[data-cat]').forEach(x=>x.classList.toggle('on',x===b));
+  render();
+}));
+$('search').addEventListener('input', render);
+
+function render(){
+  const q=$('search').value.trim().toLowerCase();
+  let rows = ENTRIES.filter(e=>{
+    if(activeCat!=='All' && e[1]!==activeCat) return false;
+    if(q && (e[0]+' '+e[2]).toLowerCase().indexOf(q)<0) return false;
+    return true;
+  });
+  $('count').textContent = rows.length+' of '+ENTRIES.length+' terms';
+  if(!rows.length){ $('list').innerHTML='<div class="empty">No terms match.</div>'; return; }
+  // group by category in CATS order
+  let h='';
+  CATS.filter(c=>c!=='All').forEach(cat=>{
+    const inCat=rows.filter(e=>e[1]===cat);
+    if(!inCat.length) return;
+    h+='<div class="cat-h">'+esc(CATLABEL[cat])+'</div>';
+    inCat.sort((a,b)=>a[0].localeCompare(b[0])).forEach(e=>{
+      const see = e[3] && HREF[e[3]] ? '<div class="see">see <a href="'+HREF[e[3]]+'">'+esc(e[3])+'</a></div>' : '';
+      h+='<div class="term"><div class="t">'+esc(e[0])+'</div><div class="d">'+esc(e[2])+'</div>'+see+'</div>';
+    });
+  });
+  $('list').innerHTML=h;
+}
+render();
+</script>
+</body>
+</html>

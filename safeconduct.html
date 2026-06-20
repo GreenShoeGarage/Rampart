@@ -86,6 +86,7 @@
     <button class="tab" role="tab" aria-selected="true"  data-tab="auth">Authorization</button>
     <button class="tab" role="tab" aria-selected="false" data-tab="log">Activity log</button>
     <button class="tab" role="tab" aria-selected="false" data-tab="brief">Brief</button>
+    <button class="tab" role="tab" aria-selected="false" data-tab="seal">Seal</button>
   </div>
 
   <!-- AUTHORIZATION -->
@@ -120,6 +121,24 @@
       <label class="fld"><span>Escalation / emergency contacts</span><textarea id="escalation" placeholder="Who to reach if challenged or if something goes wrong"></textarea></label>
       <div class="row-actions"><button class="btn" id="save">Save letter</button><span class="statline" id="save-stat" style="align-self:center;font-family:var(--mono);font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:var(--mute);"></span></div>
     </div>
+
+    <div class="card">
+      <h3>Deadman check-in</h3>
+      <p style="color:var(--mute);font-size:15px;">For solo work. Check in on an interval. If you go past it without checking in, the page raises a duress alert and shows your pre-staged message. Keep this page open for it to run.</p>
+      <div id="duress-banner"></div>
+      <div class="two-col">
+        <label class="fld"><span>Check-in interval</span>
+          <select id="ci-interval"><option value="10">10 min</option><option value="15" selected>15 min</option><option value="30">30 min</option><option value="60">60 min</option></select>
+        </label>
+        <label class="fld"><span>Countdown</span><input id="ci-count" value="Not running" readonly></label>
+      </div>
+      <label class="fld"><span>Pre-staged duress message</span><textarea id="ci-msg" placeholder="Shown if a check-in is missed. e.g. who to call, where you are."></textarea></label>
+      <div class="row-actions">
+        <button class="btn" id="ci-start">Start</button>
+        <button class="btn ghost" id="ci-ok" style="display:none;">I am OK, reset</button>
+        <button class="btn ghost" id="ci-stop" style="display:none;">Stop</button>
+      </div>
+    </div>
   </section>
 
   <!-- LOG -->
@@ -150,6 +169,25 @@
         </div>
       </div>
       <pre id="brief-out" style="white-space:pre-wrap;font-family:var(--mono);font-size:12.5px;color:var(--mute);margin-top:16px;line-height:1.7;"></pre>
+    </div>
+  </section>
+
+  <!-- SEAL -->
+  <section class="panel" id="seal">
+    <div class="card">
+      <h3>Sign and seal</h3>
+      <p style="color:var(--mute);font-size:15px;">Cryptographically sign the saved letter with a key held only in this browser (ECDSA P-256). A signed letter lets a client verify the authorization is authentic and unaltered. Save the letter first.</p>
+      <div class="row-actions">
+        <button class="btn" id="seal-sign">Sign and seal letter</button>
+        <button class="btn ghost" id="seal-download" style="display:none;">Download signed letter</button>
+      </div>
+      <div id="seal-out" style="margin-top:14px;"></div>
+    </div>
+    <div class="card">
+      <h3>Verify a signed letter</h3>
+      <p style="color:var(--mute);font-size:15px;">Load a signed letter file to confirm it is authentic and that its contents have not been changed since signing.</p>
+      <div class="row-actions"><button class="btn ghost" id="seal-verify">Load and verify</button><input type="file" id="seal-file" accept="application/json,.json" style="display:none;"></div>
+      <div id="seal-verify-out" style="margin-top:14px;"></div>
     </div>
   </section>
 </main>
@@ -2625,6 +2663,100 @@ $('reset').onclick=()=>{
     FIELDS.forEach(f=>$(f).value=''); renderChain(); renderBrief();
   }
 };
+
+/* ---------- seal: ECDSA sign + verify ---------- */
+const KEYS_K='rampart.safeconduct.keys';
+const SEAL_K='rampart.safeconduct.seal';
+function canonicalLetter(a){
+  return JSON.stringify(FIELDS.map(f=>[f,(a[f]||'')]));
+}
+function b64(buf){ return btoa(String.fromCharCode.apply(null, new Uint8Array(buf))); }
+function unb64(s){ return Uint8Array.from(atob(s), c=>c.charCodeAt(0)); }
+async function getKeys(){
+  let stored=store.get(KEYS_K,null);
+  if(stored){
+    const priv=await crypto.subtle.importKey('jwk', stored.priv, {name:'ECDSA',namedCurve:'P-256'}, true, ['sign']);
+    const pub=await crypto.subtle.importKey('jwk', stored.pub, {name:'ECDSA',namedCurve:'P-256'}, true, ['verify']);
+    return {priv,pub,pubjwk:stored.pub};
+  }
+  const kp=await crypto.subtle.generateKey({name:'ECDSA',namedCurve:'P-256'}, true, ['sign','verify']);
+  const priv=await crypto.subtle.exportKey('jwk', kp.privateKey);
+  const pub=await crypto.subtle.exportKey('jwk', kp.publicKey);
+  store.set(KEYS_K, {priv,pub});
+  return {priv:kp.privateKey, pub:kp.publicKey, pubjwk:pub};
+}
+async function fingerprint(pubjwk){
+  const h=await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify([pubjwk.x,pubjwk.y])));
+  return [...new Uint8Array(h)].slice(0,8).map(b=>b.toString(16).padStart(2,'0')).join(':');
+}
+let sealedBundle=null;
+$('seal-sign').onclick=async()=>{
+  FIELDS.forEach(f=>auth[f]=$(f).value); store.set(A_KEY,auth);
+  if(!auth.eng){ $('seal-out').innerHTML='<div class="note warn">Add at least an engagement name and save the letter first.</div>'; return; }
+  try{
+    const k=await getKeys();
+    const payload=canonicalLetter(auth);
+    const sig=await crypto.subtle.sign({name:'ECDSA',hash:'SHA-256'}, k.priv, new TextEncoder().encode(payload));
+    const fp=await fingerprint(k.pubjwk);
+    sealedBundle={ kind:'rampart-signed-letter', letter:auth, fields:FIELDS, signature:b64(sig), pubkey:k.pubjwk, signedAt:new Date().toISOString(), fingerprint:fp };
+    store.set(SEAL_K, sealedBundle);
+    $('seal-out').innerHTML='<div class="verify-state ok">Sealed</div>'+
+      '<div style="font-family:var(--mono);font-size:12px;color:var(--mute);margin-top:10px;">Signed '+esc(sealedBundle.signedAt.slice(0,19).replace('T',' '))+'<br>Key fingerprint '+esc(fp)+'</div>';
+    $('seal-download').style.display='inline-block';
+  }catch(e){ $('seal-out').innerHTML='<div class="note warn">Signing failed in this browser.</div>'; }
+};
+$('seal-download').onclick=()=>{
+  if(!sealedBundle) sealedBundle=store.get(SEAL_K,null); if(!sealedBundle) return;
+  const b=new Blob([JSON.stringify(sealedBundle,null,2)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='signed-letter.json'; a.click(); URL.revokeObjectURL(a.href);
+};
+$('seal-verify').onclick=()=>$('seal-file').click();
+$('seal-file').onchange=async e=>{
+  const file=e.target.files[0]; if(!file) return;
+  try{
+    const obj=JSON.parse(await file.text());
+    if(obj.kind!=='rampart-signed-letter') throw new Error('not signed letter');
+    const flds=obj.fields||FIELDS;
+    const payload=JSON.stringify(flds.map(f=>[f,(obj.letter[f]||'')]));
+    const pub=await crypto.subtle.importKey('jwk', obj.pubkey, {name:'ECDSA',namedCurve:'P-256'}, true, ['verify']);
+    const ok=await crypto.subtle.verify({name:'ECDSA',hash:'SHA-256'}, pub, unb64(obj.signature), new TextEncoder().encode(payload));
+    const fp=await fingerprint(obj.pubkey);
+    $('seal-verify-out').innerHTML = ok
+      ? '<div class="verify-state ok">Valid signature</div><div style="font-family:var(--mono);font-size:12px;color:var(--mute);margin-top:10px;">Engagement: '+esc(obj.letter.eng||'-')+'<br>Signed '+esc((obj.signedAt||'').slice(0,19).replace('T',' '))+'<br>Key fingerprint '+esc(fp)+'</div>'
+      : '<div class="verify-state bad">Invalid. The letter does not match its signature.</div>';
+  }catch(err){ $('seal-verify-out').innerHTML='<div class="verify-state bad">Not a valid signed letter file.</div>'; }
+  e.target.value='';
+};
+// show existing seal state
+(function(){ const s=store.get(SEAL_K,null); if(s){ sealedBundle=s; $('seal-out').innerHTML='<div class="verify-state ok">Sealed</div><div style="font-family:var(--mono);font-size:12px;color:var(--mute);margin-top:10px;">Signed '+esc((s.signedAt||'').slice(0,19).replace('T',' '))+'<br>Key fingerprint '+esc(s.fingerprint||'')+'</div>'; $('seal-download').style.display='inline-block'; } })();
+
+/* ---------- deadman check-in ---------- */
+let ciTimer=null, ciDeadline=0;
+function ciRender(){
+  if(!ciTimer){ $('ci-count').value='Not running'; return; }
+  const left=Math.max(0, Math.round((ciDeadline-Date.now())/1000));
+  const m=Math.floor(left/60), s=left%60;
+  $('ci-count').value=m+'m '+(s<10?'0':'')+s+'s';
+}
+function ciDuress(){
+  clearInterval(ciTimer); ciTimer=null;
+  const msg=$('ci-msg').value.trim()||'Check-in missed. Contact the assessor and the escalation contacts immediately.';
+  $('duress-banner').innerHTML='<div class="warn-banner" style="font-size:14px;">DURESS: check-in missed at '+new Date().toLocaleTimeString()+'. '+esc(msg)+'</div>';
+  try{ const c=new (window.AudioContext||window.webkitAudioContext)(); const o=c.createOscillator(),g=c.createGain(); o.type='square'; o.frequency.value=660; o.connect(g); g.connect(c.destination); g.gain.value=0.2; o.start(); setTimeout(()=>{o.stop();},1500); }catch(e){}
+  $('ci-ok').style.display='none'; $('ci-stop').style.display='inline-block'; $('ci-start').style.display='inline-block'; $('ci-count').value='MISSED';
+}
+function ciStart(){
+  const mins=+$('ci-interval').value;
+  ciDeadline=Date.now()+mins*60000;
+  $('duress-banner').innerHTML='';
+  clearInterval(ciTimer);
+  ciTimer=setInterval(()=>{ ciRender(); if(Date.now()>=ciDeadline) ciDuress(); }, 1000);
+  ciRender();
+  $('ci-start').style.display='none'; $('ci-ok').style.display='inline-block'; $('ci-stop').style.display='inline-block';
+}
+$('ci-start').onclick=ciStart;
+$('ci-ok').onclick=ciStart;
+$('ci-stop').onclick=()=>{ clearInterval(ciTimer); ciTimer=null; $('duress-banner').innerHTML=''; $('ci-count').value='Not running'; $('ci-start').style.display='inline-block'; $('ci-ok').style.display='none'; $('ci-stop').style.display='none'; };
 </script>
 </body>
 </html>

@@ -98,6 +98,9 @@
           <button class="btn" id="print">Print / Save PDF</button>
           <button class="btn ghost sm" id="copy">Copy text</button>
           <button class="btn ghost sm" id="export">Export JSON</button>
+          <button class="btn ghost sm" id="csv">Export CSV</button>
+          <button class="btn ghost sm" id="prior">Compare prior</button>
+          <input type="file" id="prior-file" accept="application/json,.json" style="display:none;">
         </div>
       </div>
     </div>
@@ -132,6 +135,7 @@ function srcOf(f){
   if(f.wire!==undefined || (f.tech!==undefined && f.item===undefined)) return 'Credential';
   if(f.type && /door|perimeter|barrier|camera|gate|window|lighting|alarm|reception/i.test(f.type)) return 'Sweep';
   if(f.type && /approach|exposure|footprint/i.test(f.type)) return 'Footprint';
+  if(f.type==='Lock') return 'Tumbler';
   return 'Finding';
 }
 function normalize(f){
@@ -164,7 +168,7 @@ function restoreStatus(mem){ data.findings.forEach(f=>{ if(mem[fkey(f)]) f.statu
 $('pull').onclick=()=>{
   const mem=statusMemory();
   data.findings=[];
-  ['rampart.credential.findings','rampart.sweep.findings','rampart.aether.findings','rampart.footprint.findings'].forEach(k=>addFindings(store.get(k,[])));
+  ['rampart.credential.findings','rampart.sweep.findings','rampart.aether.findings','rampart.footprint.findings','rampart.tumbler.findings'].forEach(k=>addFindings(store.get(k,[])));
   restoreStatus(mem);
   const auth=store.get('rampart.safeconduct.auth',null); if(auth && Object.keys(auth).length) data.auth=auth;
   const log=store.get('rampart.safeconduct.log',[]); if(log.length) data.log=log;
@@ -211,7 +215,7 @@ showLogoPrev();
 
 /* ---------- sources view ---------- */
 function renderSources(){
-  const counts={Credential:0,Sweep:0,Aether:0,Footprint:0,Finding:0};
+  const counts={Credential:0,Sweep:0,Aether:0,Footprint:0,Tumbler:0,Finding:0};
   data.findings.forEach(f=>counts[f.source]=(counts[f.source]||0)+1);
   const eng = data.auth && data.auth.eng ? data.auth.eng : null;
   const rows=[
@@ -219,6 +223,7 @@ function renderSources(){
     ['Sweep findings', counts.Sweep],
     ['Aether findings', counts.Aether],
     ['Footprint findings', counts.Footprint],
+    ['Tumbler findings', counts.Tumbler],
     ['Other findings', counts.Finding],
     ['Engagement letter', eng ? eng : 0],
     ['Activity log', data.log.length ? data.log.length+' entries' : 0]
@@ -279,6 +284,10 @@ function renderReport(){
   h+='<p style="color:var(--mute);font-size:14.5px;">This report consolidates '+total+' finding'+(total===1?'':'s')+' recorded during the engagement. '+
      c.crit+' rated critical and require priority remediation, '+c.weak+' rated medium. '+c.strong+' feature'+(c.strong===1?' was':'s were')+' reviewed and found adequate.</p>';
   h+='<div style="margin:10px 0 4px;">'+SEV.map((p,i)=>'<span class="'+POSTURE_PILL[p]+'"'+(i?' style="margin-left:6px;"':'')+'>'+POSTURE_LABEL[p]+' '+c[p]+'</span>').join('')+'</div>';
+  const risk = c.crit*10 + c.weak*4 + Math.round(c.info*0.5);
+  const band = (c.crit>=3||risk>=30)?'High':(c.crit>0?'Elevated':(c.weak>0?'Moderate':'Low'));
+  const bandPill = {High:'pill crit',Elevated:'pill crit',Moderate:'pill weak',Low:'pill strong'}[band];
+  h+='<p style="margin-top:12px;"><span class="'+bandPill+'">Overall risk: '+band+'</span> <span style="color:var(--faint);font-family:var(--mono);font-size:12px;margin-left:8px;">weighted index '+risk+'</span></p>';
   if(actionable.length){
     h+='<p style="color:var(--faint);font-size:13px;margin-top:10px;">Remediation status of the '+actionable.length+' actionable finding'+(actionable.length===1?'':'s')+': '+
        st.open+' open, '+st.progress+' in progress, '+st.closed+' closed.</p>';
@@ -296,6 +305,28 @@ function renderReport(){
     if(!list.length) return;
     h+='<div class="sev-head">'+title+' ('+list.length+')</div>'+findingTable(list, showStatus);
   });
+
+  if(data.prior && data.prior.length){
+    const keyf=function(f){ return f.source+'|'+f.loc+'|'+f.item; };
+    const curMap={}; data.findings.forEach(function(f){ curMap[keyf(f)]=f; });
+    const priMap={}; data.prior.forEach(function(f){ priMap[keyf(f)]=f; });
+    const added=data.findings.filter(function(f){ return !priMap[keyf(f)]; });
+    const resolved=data.prior.filter(function(f){ var cur=curMap[keyf(f)]; return !cur || cur.status==='closed'; });
+    const persisting=data.findings.filter(function(f){ return priMap[keyf(f)] && f.status!=='closed'; });
+    h+='<div class="sev-head">Remediation progress since prior assessment</div>'+
+       '<p style="margin:4px 0;"><span class="pill strong">Resolved '+resolved.length+'</span> <span class="pill weak" style="margin-left:6px;">Persisting '+persisting.length+'</span> <span class="pill crit" style="margin-left:6px;">New '+added.length+'</span></p>';
+    if(added.length) h+='<p style="color:var(--mute);font-size:13.5px;margin-top:8px;"><strong style="color:var(--cream);">New:</strong> '+added.map(function(f){return esc(f.loc+' / '+f.item);}).join('; ')+'</p>';
+    if(resolved.length) h+='<p style="color:var(--mute);font-size:13.5px;"><strong style="color:var(--cream);">Resolved:</strong> '+resolved.map(function(f){return esc(f.loc+' / '+f.item);}).join('; ')+'</p>';
+  }
+
+  const withPhoto=data.findings.filter(function(f){ return f.photo; });
+  if(withPhoto.length){
+    h+='<div class="sev-head">Appendix · Photo evidence</div><div style="display:flex;flex-wrap:wrap;gap:14px;">';
+    withPhoto.forEach(function(f){
+      h+='<div style="width:200px;"><img src="'+f.photo+'" style="width:100%;border:1px solid var(--line);border-radius:2px;"><div style="font-size:12px;color:var(--mute);margin-top:4px;">'+esc(f.loc)+' / '+esc(f.item)+' <span class="'+POSTURE_PILL[f.posture]+'">'+POSTURE_LABEL[f.posture]+'</span></div></div>';
+    });
+    h+='</div>';
+  }
 
   if(data.log.length){
     h+='<div class="sev-head">Appendix · Activity log</div>'+
@@ -330,6 +361,29 @@ function reportText(){
 $('copy').onclick=async()=>{ try{ await navigator.clipboard.writeText(reportText()); alert('Report copied to clipboard.'); }catch(e){ alert('Copy failed. Use Export JSON.'); } };
 $('export').onclick=()=>{ const b=new Blob([JSON.stringify(data,null,2)],{type:'application/json'}); const x=document.createElement('a'); x.href=URL.createObjectURL(b); x.download='docket-report.json'; x.click(); URL.revokeObjectURL(x.href); };
 $('print').onclick=()=>{ document.querySelector('.tab[data-tab="report"]').click(); window.print(); };
+
+function csvCell(s){ s=String(s==null?'':s); return /[",\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s; }
+$('csv').onclick=()=>{
+  if(!data.findings.length){ alert('No findings to export.'); return; }
+  const head=['Location','Type','Item','Severity','Status','Recommendation','Source','Note'];
+  const rows=data.findings.map(f=>[f.loc,f.type,f.item,POSTURE_LABEL[f.posture],STATUS_LABEL[f.status]||f.status||'',f.fix,f.source,f.note].map(csvCell).join(','));
+  const csv=head.join(',')+'\n'+rows.join('\n');
+  const b=new Blob([csv],{type:'text/csv'}); const x=document.createElement('a'); x.href=URL.createObjectURL(b); x.download='docket-findings.csv'; x.click(); URL.revokeObjectURL(x.href);
+};
+$('prior').onclick=()=>$('prior-file').click();
+$('prior-file').onchange=async e=>{
+  const file=e.target.files[0]; if(!file) return;
+  try{
+    const obj=JSON.parse(await file.text());
+    let pf = Array.isArray(obj) ? obj : (obj.findings || []);
+    if(!pf.length){ alert('No findings found in that file. Use a prior Docket report (JSON).'); e.target.value=''; return; }
+    data.prior = pf.map(normalize);
+    renderReport();
+    document.querySelector('.tab[data-tab="report"]').click();
+    alert('Prior assessment loaded. Remediation progress is shown in the report.');
+  }catch(err){ alert('Could not read that file.'); }
+  e.target.value='';
+};
 
 /* ---------- tabs ---------- */
 const tabs=document.querySelectorAll('.tab');

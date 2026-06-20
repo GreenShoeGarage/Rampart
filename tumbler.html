@@ -164,6 +164,15 @@
         <label class="fld"><span>Keys issued</span><input id="f-count" type="number" min="0" placeholder="0"></label>
         <label class="fld"><span>Notes</span><input id="f-note" placeholder="Optional"></label>
       </div>
+      <label class="switch" style="display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:var(--mute);margin-bottom:12px;"><input type="checkbox" id="f-raise" style="width:auto;"> Raise this lock as a finding</label>
+      <div id="f-finding-fields" style="display:none;">
+        <div class="two-col">
+          <label class="fld"><span>Severity</span>
+            <select id="f-sev"><option value="crit">Critical</option><option value="weak">Weak</option><option value="strong">Strong</option><option value="info">Info</option></select>
+          </label>
+          <label class="fld"><span>Recommendation</span><input id="f-fix" placeholder="e.g. Uprate to a Grade 1 cylinder"></label>
+        </div>
+      </div>
       <div class="row-actions"><button class="btn" id="add">Add lock</button></div>
     </div>
 
@@ -196,6 +205,20 @@
     </div>
     <div class="card">
       <div id="chart-body" style="overflow:auto;"></div>
+    </div>
+    <div class="card">
+      <h3>Key-holder register</h3>
+      <p style="color:var(--mute);font-size:15px;">Record who holds each key, for handover and audit. Keys come from the chart above.</p>
+      <div class="two-col">
+        <label class="fld"><span>Key</span><select id="kh-key"></select></label>
+        <label class="fld"><span>Holder</span><input id="kh-holder" placeholder="Name or role"></label>
+      </div>
+      <div class="two-col">
+        <label class="fld"><span>Copies</span><input id="kh-count" type="number" min="1" value="1"></label>
+        <label class="fld"><span>Note</span><input id="kh-note" placeholder="Issued date, condition of return"></label>
+      </div>
+      <div class="row-actions"><button class="btn" id="kh-add">Record holder</button></div>
+      <div id="kh-body" style="margin-top:14px;"></div>
     </div>
   </section>
 </main>
@@ -234,28 +257,45 @@ function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, c => ({'&':'&amp
 
 let editIdx = -1;
 const addBtn = document.getElementById('add');
+const FKEY = 'rampart.tumbler.findings';
+const gradeSev = { 'Grade 1':'strong', 'Grade 2':'weak', 'Grade 3':'crit', 'Unknown':'info' };
+const rf = document.getElementById('f-raise');
+function toggleFinding(){ document.getElementById('f-finding-fields').style.display = rf.checked ? 'block' : 'none'; }
+rf.addEventListener('change', ()=>{ toggleFinding(); if(rf.checked && !document.getElementById('f-fix').value){ document.getElementById('f-sev').value = gradeSev[document.getElementById('f-grade').value]||'info'; } });
+document.getElementById('f-grade').addEventListener('change', ()=>{ if(rf.checked && !document.getElementById('f-fix').value.trim()) document.getElementById('f-sev').value = gradeSev[document.getElementById('f-grade').value]||'info'; });
+
+function syncFindings(){
+  const f = inv.filter(r=>r.raise).map(r=>({
+    type:'Lock', loc:r.loc, item:(r.grade&&r.grade!=='Unknown'?r.grade+' ':'')+(r.type||'cylinder'),
+    posture:r.sev||'info', fix:r.fix||'', note:r.note||'', time:r.time||new Date().toISOString()
+  }));
+  store.set(FKEY, f);
+}
 function clearForm(){
-  ['f-loc','f-count','f-note'].forEach(id=>document.getElementById(id).value='');
+  ['f-loc','f-count','f-note','f-fix'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('f-type').selectedIndex=0; document.getElementById('f-grade').selectedIndex=0; document.getElementById('f-key').selectedIndex=0;
+  rf.checked=false; toggleFinding();
   editIdx=-1; addBtn.textContent='Add lock';
 }
 function loadForm(r){
   document.getElementById('f-loc').value=r.loc||''; document.getElementById('f-type').value=r.type||'';
   document.getElementById('f-grade').value=r.grade||''; document.getElementById('f-key').value=r.key||'';
   document.getElementById('f-count').value=r.count||''; document.getElementById('f-note').value=r.note||'';
+  rf.checked=!!r.raise; toggleFinding();
+  document.getElementById('f-sev').value=r.sev||'info'; document.getElementById('f-fix').value=r.fix||'';
 }
 function renderInv(){
   if(!inv.length){ invBody.innerHTML = '<div class="empty">No cylinders recorded yet. Add one above.</div>'; return; }
   let h = '<table class="tbl"><thead><tr><th>Opening</th><th>Type</th><th>Grade</th><th>Keyway</th><th class="mono">Keys</th><th></th></tr></thead><tbody>';
   inv.forEach((r,i) => {
-    h += '<tr><td>'+esc(r.loc)+(r.note?'<br><span style="color:var(--faint);font-size:12px;">'+esc(r.note)+'</span>':'')+'</td>'+
+    h += '<tr><td>'+esc(r.loc)+(r.raise?' <span class="'+ ({crit:'pill crit',weak:'pill weak',strong:'pill strong',info:'pill info'}[r.sev||'info']) +'">finding</span>':'')+(r.note?'<br><span style="color:var(--faint);font-size:12px;">'+esc(r.note)+'</span>':'')+'</td>'+
          '<td>'+esc(r.type)+'</td><td>'+gradePill(esc(r.grade))+'</td><td>'+esc(r.key)+'</td>'+
          '<td class="mono">'+esc(r.count||'0')+'</td>'+
          '<td style="white-space:nowrap;"><button class="btn ghost sm" data-edit="'+i+'">Edit</button> <button class="btn ghost sm" data-del="'+i+'">Remove</button></td></tr>';
   });
   invBody.innerHTML = h + '</tbody></table>';
   invBody.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', () => {
-    inv.splice(+b.dataset.del,1); store.set(KEY_INV, inv); if(editIdx===+b.dataset.del) clearForm(); renderInv();
+    inv.splice(+b.dataset.del,1); store.set(KEY_INV, inv); syncFindings(); if(editIdx===+b.dataset.del) clearForm(); renderInv();
   }));
   invBody.querySelectorAll('[data-edit]').forEach(b => b.addEventListener('click', () => {
     editIdx=+b.dataset.edit; loadForm(inv[editIdx]); addBtn.textContent='Update lock';
@@ -268,10 +308,13 @@ addBtn.addEventListener('click', () => {
   const rec = {
     loc, type: document.getElementById('f-type').value,
     grade: document.getElementById('f-grade').value, key: document.getElementById('f-key').value,
-    count: document.getElementById('f-count').value, note: document.getElementById('f-note').value.trim()
+    count: document.getElementById('f-count').value, note: document.getElementById('f-note').value.trim(),
+    raise: rf.checked, sev: document.getElementById('f-sev').value, fix: document.getElementById('f-fix').value.trim(),
+    time: editIdx>=0 ? (inv[editIdx].time||new Date().toISOString()) : new Date().toISOString()
   };
   if(editIdx>=0) inv[editIdx]=rec; else inv.push(rec);
   store.set(KEY_INV, inv);
+  syncFindings();
   clearForm();
   renderInv();
 });
@@ -313,7 +356,36 @@ function renderChart(){
   chartBody.querySelectorAll('[data-deldoor]').forEach(b => b.addEventListener('click', () => {
     chart.doors.splice(+b.dataset.deldoor,1); chart.cells={}; store.set(KEY_CHART, chart); renderChart();
   }));
+  refreshKH();
 }
+
+/* ---------- key-holder register ---------- */
+const KEY_HOLDERS = 'rampart.tumbler.keyholders';
+let holders = store.get(KEY_HOLDERS, []);
+const khKey = document.getElementById('kh-key');
+const khBody = document.getElementById('kh-body');
+function refreshKH(){
+  const prev = khKey.value;
+  khKey.innerHTML = chart.keys.length ? chart.keys.map(k=>'<option>'+esc(k)+'</option>').join('') : '<option value="">Add keys to the chart first</option>';
+  if(chart.keys.indexOf(prev)>=0) khKey.value=prev;
+  renderHolders();
+}
+function renderHolders(){
+  if(!holders.length){ khBody.innerHTML='<div class="empty">No key holders recorded.</div>'; return; }
+  let h='<table class="tbl"><thead><tr><th>Key</th><th>Holder</th><th class="mono">Copies</th><th>Note</th><th></th></tr></thead><tbody>';
+  holders.forEach((r,i)=>{ h+='<tr><td class="mono">'+esc(r.key)+'</td><td>'+esc(r.holder)+'</td><td class="mono">'+esc(r.count||'1')+'</td><td style="color:var(--mute);font-size:13px;">'+esc(r.note||'')+'</td><td><button class="btn ghost sm" data-khdel="'+i+'">Remove</button></td></tr>'; });
+  khBody.innerHTML=h+'</tbody></table>';
+  khBody.querySelectorAll('[data-khdel]').forEach(b=>b.addEventListener('click',()=>{ holders.splice(+b.dataset.khdel,1); store.set(KEY_HOLDERS,holders); renderHolders(); }));
+}
+document.getElementById('kh-add').addEventListener('click', ()=>{
+  const key=khKey.value; const holder=document.getElementById('kh-holder').value.trim();
+  if(!key){ alert('Add a key to the chart first.'); return; }
+  if(!holder){ document.getElementById('kh-holder').focus(); return; }
+  holders.push({ key, holder, count:document.getElementById('kh-count').value||'1', note:document.getElementById('kh-note').value.trim() });
+  store.set(KEY_HOLDERS, holders);
+  document.getElementById('kh-holder').value=''; document.getElementById('kh-note').value=''; document.getElementById('kh-count').value='1';
+  renderHolders();
+});
 document.getElementById('k-add-key').addEventListener('click', () => {
   const v = document.getElementById('k-key').value.trim(); if(!v) return;
   chart.keys.push(v); document.getElementById('k-key').value=''; store.set(KEY_CHART, chart); renderChart();

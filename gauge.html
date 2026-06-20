@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<!-- GAUGE (Field Instrument 036, Mod 15) - Rampart Field Kit. License: GPL-3.0 -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GAUGE - Rampart Field Kit</title>
+<meta name="description" content="Reference-scale camera measure tool. Estimate door gaps, fence heights, and standoff from a photo. Runs offline.">
+<link rel="stylesheet" href="theme.css">
+<style>
+  .stage-wrap { position:relative; max-width:100%; }
+  #stage { width:100%; display:block; border:1px solid var(--line-2); border-radius:3px; background:#000; touch-action:none; cursor:crosshair; }
+  .scale-state { font-family:var(--mono); font-size:12px; letter-spacing:0.04em; color:var(--steel); margin-top:8px; }
+  .scale-state.set { color:var(--olive); }
+  .modebar { display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
+  .modebar .btn.on { border-color:var(--rust); color:var(--rust); }
+  .mlist { margin-top:8px; }
+  .reflist { color:var(--mute); font-size:14.5px; line-height:1.8; }
+  .presets { font-size:13px; color:var(--mute); }
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#15191c">
+<link rel="apple-touch-icon" href="icon-192.png">
+<script src="gate.js"></script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</head>
+<body>
+<div class="band"><span>Authorized assessment use only</span></div>
+
+<header class="masthead">
+  <div class="wrap">
+    <div class="crumbs"><a href="index.html">Rampart</a><span class="sep">/</span><span>Mod 15</span><span class="sep">/</span><span>Gauge</span></div>
+    <div class="kit-title"><span class="name">Gauge</span><span class="no">036 · 15</span></div>
+    <div class="kit-sub">Measure Tool</div>
+    <p class="kit-lede">Measure from a photo. Put an object of known size in the shot, set the scale from it, then measure door gaps, fence heights, and standoff distances against that scale. Best when the reference and the target sit in the same plane, shot straight on.</p>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" aria-selected="true"  data-tab="measure">Measure</button>
+    <button class="tab" role="tab" aria-selected="false" data-tab="saved">Saved</button>
+    <button class="tab" role="tab" aria-selected="false" data-tab="reference">Reference</button>
+  </div>
+
+  <!-- MEASURE -->
+  <section class="panel active" id="measure">
+    <div class="card">
+      <video id="cam" playsinline muted style="display:none;width:100%;max-width:440px;border:1px solid var(--line-2);border-radius:3px;aspect-ratio:4/3;object-fit:cover;background:#000;"></video>
+      <div class="stage-wrap" id="stage-wrap" style="display:none;"><canvas id="stage"></canvas></div>
+      <div class="row-actions" style="margin-top:12px;">
+        <button class="btn" id="cam-start">Start camera</button>
+        <button class="btn" id="cam-shot" style="display:none;">Capture frame</button>
+        <label class="btn ghost" for="file-in" style="cursor:pointer;">Use a photo</label>
+        <input type="file" id="file-in" accept="image/*" capture="environment" style="display:none;">
+      </div>
+    </div>
+
+    <div class="card" id="tools" style="display:none;">
+      <h3>Reference scale</h3>
+      <div class="two-col">
+        <label class="fld"><span>Known length</span><input id="ref-len" type="number" step="any" min="0" placeholder="e.g. 85.6"></label>
+        <label class="fld"><span>Unit</span>
+          <select id="ref-unit"><option>mm</option><option>cm</option><option>in</option><option>ft</option><option>m</option></select>
+        </label>
+      </div>
+      <label class="fld"><span>Common references</span>
+        <select id="preset">
+          <option value="">Pick a known object to fill the length</option>
+          <option value="85.6|mm">Credit or ID card, long edge 85.6 mm</option>
+          <option value="156|mm">US banknote, long edge 156 mm</option>
+          <option value="279|mm">Letter paper, long edge 279 mm</option>
+          <option value="203|mm">Standard brick, long edge 203 mm</option>
+          <option value="80|in">Standard door, height 80 in</option>
+        </select>
+      </label>
+      <div class="modebar">
+        <button class="btn" id="mode-ref">Set reference line</button>
+        <button class="btn ghost" id="mode-meas" disabled>Add measurement</button>
+        <button class="btn ghost" id="undo">Undo last</button>
+      </div>
+      <div class="scale-state" id="scale-state">Scale not set. Tap two ends of your known object.</div>
+      <div class="mlist" id="mlist"></div>
+
+      <h3 style="margin-top:20px;">Save this set</h3>
+      <div class="two-col">
+        <label class="fld"><span>Location</span><input id="s-loc" placeholder="e.g. Rear door"></label>
+        <label class="fld"><span>Note</span><input id="s-note" placeholder="Optional"></label>
+      </div>
+      <div class="row-actions"><button class="btn" id="save" disabled>Save measurement set</button><span class="statline" id="save-stat" style="align-self:center;"></span></div>
+    </div>
+  </section>
+
+  <!-- SAVED -->
+  <section class="panel" id="saved">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+        <h3 style="margin:0;">Saved measurement sets</h3>
+        <div class="row-actions" style="margin:0;">
+          <button class="btn ghost sm" id="export">Export JSON</button>
+          <button class="btn ghost sm" id="clear">Clear</button>
+        </div>
+      </div>
+      <div id="saved-body" style="margin-top:14px;"></div>
+    </div>
+  </section>
+
+  <!-- REFERENCE -->
+  <section class="panel" id="reference">
+    <div class="card">
+      <h3>How to measure well</h3>
+      <div class="reflist">
+        Place the reference object in the same plane as what you are measuring, for example flat against the same door or wall.<br>
+        Shoot straight on. Perspective foreshortens anything tilted away from the lens and skews the result.<br>
+        Set the reference across its longest clear edge for the best accuracy, then measure.<br>
+        This is an estimate from a single photo, not survey grade. For anything load bearing on a decision, confirm with a tape.
+      </div>
+    </div>
+    <div class="card">
+      <h3>Useful references</h3>
+      <div class="presets">
+        Credit or ID card, long edge 85.6 mm. US banknote, long edge 156 mm. Letter paper, long edge 279 mm. Standard brick, long edge 203 mm. Standard door height, 80 in. A tape measure or folding rule shot in plane is best of all.
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="wrap foot">
+  <span><a href="index.html" style="color:var(--mute);">&larr; Back to kit</a></span>
+  <span>Gauge · Mod 15</span>
+</footer>
+
+<script>
+const $ = id => document.getElementById(id);
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+const store = {
+  get(k,d){ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):d; }catch(e){ return d; } },
+  set(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){} }
+};
+const KEY='rampart.gauge.log';
+let sets = store.get(KEY, []);
+
+const canvas=$('stage'), ctx=canvas.getContext('2d');
+let imgEl=null, scale=null, unit='mm';
+let mode=null;            // 'ref' | 'meas'
+let pending=[];           // points being placed
+let refLine=null;         // {a,b}
+let measurements=[];      // {label, a, b, len}
+
+/* ---------- image load ---------- */
+let stream=null;
+$('cam-start').onclick=async()=>{
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({ video:{ facingMode:'environment' } });
+    $('cam').srcObject=stream; await $('cam').play();
+    $('cam').style.display='block'; $('cam-start').style.display='none'; $('cam-shot').style.display='inline-block';
+  }catch(e){ $('save-stat').textContent='Camera unavailable, use a photo'; }
+};
+$('cam-shot').onclick=()=>{
+  const v=$('cam'); const w=v.videoWidth||1024,h=v.videoHeight||768; const max=1400;
+  let cw=w,ch=h; if(cw>ch&&cw>max){ch=Math.round(ch*max/cw);cw=max;} else if(ch>max){cw=Math.round(cw*max/ch);ch=max;}
+  const tmp=document.createElement('canvas'); tmp.width=cw; tmp.height=ch; tmp.getContext('2d').drawImage(v,0,0,cw,ch);
+  loadImage(tmp.toDataURL('image/jpeg',0.7));
+  if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; }
+  $('cam').style.display='none'; $('cam-start').style.display='inline-block'; $('cam-start').textContent='Restart camera'; $('cam-shot').style.display='none';
+};
+$('file-in').onchange=e=>{
+  const file=e.target.files[0]; if(!file) return;
+  const rd=new FileReader(); rd.onload=()=>{
+    const img=new Image(); img.onload=()=>{
+      const max=1400; let w=img.width,h=img.height;
+      if(w>h&&w>max){h=Math.round(h*max/w);w=max;} else if(h>max){w=Math.round(w*max/h);h=max;}
+      const tmp=document.createElement('canvas'); tmp.width=w; tmp.height=h; tmp.getContext('2d').drawImage(img,0,0,w,h);
+      loadImage(tmp.toDataURL('image/jpeg',0.7));
+    }; img.src=rd.result;
+  }; rd.readAsDataURL(file); e.target.value='';
+};
+function loadImage(dataURL){
+  imgEl=new Image();
+  imgEl.onload=()=>{
+    canvas.width=imgEl.width; canvas.height=imgEl.height;
+    scale=null; refLine=null; measurements=[]; pending=[]; mode=null;
+    $('stage-wrap').style.display='block'; $('tools').style.display='block';
+    setScaleState(); renderMlist(); redraw(); updateSaveBtn();
+  };
+  imgEl.src=dataURL; imgEl._src=dataURL;
+}
+
+/* ---------- preset ---------- */
+$('preset').onchange=function(){
+  if(!this.value) return;
+  const [len,u]=this.value.split('|'); $('ref-len').value=len; $('ref-unit').value=u;
+};
+
+/* ---------- drawing ---------- */
+function evtPt(ev){
+  const r=canvas.getBoundingClientRect();
+  const cx=(ev.touches?ev.touches[0].clientX:ev.clientX), cy=(ev.touches?ev.touches[0].clientY:ev.clientY);
+  return { x:(cx-r.left)*(canvas.width/r.width), y:(cy-r.top)*(canvas.height/r.height) };
+}
+function dist(a,b){ return Math.hypot(a.x-b.x, a.y-b.y); }
+function dot(p,c){ ctx.beginPath(); ctx.arc(p.x,p.y,Math.max(4,canvas.width/180),0,7); ctx.fillStyle=c; ctx.fill(); }
+function line(a,b,c){ ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.strokeStyle=c; ctx.lineWidth=Math.max(2,canvas.width/350); ctx.stroke(); }
+function label(a,b,txt,c){
+  const mx=(a.x+b.x)/2, my=(a.y+b.y)/2; ctx.font=Math.max(13,canvas.width/40)+'px monospace';
+  const w=ctx.measureText(txt).width, pad=5, hh=Math.max(16,canvas.width/30);
+  ctx.fillStyle='rgba(21,25,28,0.85)'; ctx.fillRect(mx+6, my-hh, w+pad*2, hh);
+  ctx.fillStyle=c; ctx.textBaseline='middle'; ctx.fillText(txt, mx+6+pad, my-hh/2);
+}
+function redraw(){
+  if(!imgEl) return;
+  ctx.drawImage(imgEl,0,0,canvas.width,canvas.height);
+  if(refLine){ line(refLine.a,refLine.b,'#c79e50'); dot(refLine.a,'#c79e50'); dot(refLine.b,'#c79e50'); label(refLine.a,refLine.b,'REF','#c79e50'); }
+  measurements.forEach(m=>{ line(m.a,m.b,'#84955f'); dot(m.a,'#84955f'); dot(m.b,'#84955f'); label(m.a,m.b, m.label+' '+m.len.toFixed(1)+unit, '#cfcabd'); });
+  pending.forEach(p=>dot(p, mode==='ref'?'#c79e50':'#84955f'));
+}
+
+/* ---------- interaction ---------- */
+function onTap(ev){
+  if(!imgEl || !mode) return;
+  ev.preventDefault();
+  pending.push(evtPt(ev));
+  redraw();
+  if(pending.length===2){
+    if(mode==='ref') commitRef();
+    else commitMeas();
+  }
+}
+canvas.addEventListener('click', onTap);
+canvas.addEventListener('touchstart', onTap, {passive:false});
+
+$('mode-ref').onclick=()=>{ mode='ref'; pending=[]; setActive(); $('scale-state').textContent='Tap the two ends of your known object.'; redraw(); };
+$('mode-meas').onclick=()=>{ if(!scale) return; mode='meas'; pending=[]; setActive(); $('scale-state').classList.add('set'); redraw(); };
+function setActive(){ $('mode-ref').classList.toggle('on',mode==='ref'); $('mode-meas').classList.toggle('on',mode==='meas'); }
+
+function commitRef(){
+  const len=parseFloat($('ref-len').value);
+  if(!(len>0)){ alert('Enter the known length of the reference first.'); pending=[]; redraw(); return; }
+  unit=$('ref-unit').value;
+  const px=dist(pending[0],pending[1]);
+  if(px<2){ pending=[]; redraw(); return; }
+  scale=len/px; refLine={a:pending[0],b:pending[1]};
+  pending=[]; mode=null; setActive();
+  $('mode-meas').disabled=false;
+  setScaleState(); redraw();
+}
+function commitMeas(){
+  const px=dist(pending[0],pending[1]); const len=px*scale;
+  const lbl=prompt('Label for this measurement:', 'M'+(measurements.length+1)) || ('M'+(measurements.length+1));
+  measurements.push({ label:lbl, a:pending[0], b:pending[1], len });
+  pending=[]; mode=null; setActive();
+  renderMlist(); redraw(); updateSaveBtn();
+}
+$('undo').onclick=()=>{
+  if(pending.length){ pending=[]; }
+  else if(measurements.length){ measurements.pop(); }
+  else if(refLine){ refLine=null; scale=null; $('mode-meas').disabled=true; }
+  mode=null; setActive(); setScaleState(); renderMlist(); redraw(); updateSaveBtn();
+};
+function setScaleState(){
+  const el=$('scale-state');
+  if(scale){ el.classList.add('set'); el.textContent='Scale set: 1 px = '+scale.toFixed(3)+' '+unit+'. Add measurements.'; }
+  else { el.classList.remove('set'); el.textContent='Scale not set. Tap two ends of your known object.'; }
+}
+function renderMlist(){
+  if(!measurements.length){ $('mlist').innerHTML=''; return; }
+  $('mlist').innerHTML='<table class="tbl"><thead><tr><th>Label</th><th class="mono">Length</th><th></th></tr></thead><tbody>'+
+    measurements.map((m,i)=>'<tr><td>'+esc(m.label)+'</td><td class="mono">'+m.len.toFixed(1)+' '+unit+'</td><td><button class="btn ghost sm" data-mdel="'+i+'">Remove</button></td></tr>').join('')+
+    '</tbody></table>';
+  $('mlist').querySelectorAll('[data-mdel]').forEach(b=>b.addEventListener('click',()=>{ measurements.splice(+b.dataset.mdel,1); renderMlist(); redraw(); updateSaveBtn(); }));
+}
+function updateSaveBtn(){ $('save').disabled = !measurements.length; }
+
+/* ---------- save sets ---------- */
+$('save').onclick=()=>{
+  if(!measurements.length) return;
+  sets.push({ time:new Date().toISOString(), loc:$('s-loc').value.trim(), note:$('s-note').value.trim(),
+    unit, img:imgEl._src, measurements:measurements.map(m=>({label:m.label, len:+m.len.toFixed(1)})) });
+  store.set(KEY, sets);
+  $('s-loc').value=''; $('s-note').value='';
+  $('save-stat').textContent='Saved '+measurements.length+' measurement'+(measurements.length===1?'':'s')+'.';
+  renderSaved();
+};
+function renderSaved(){
+  if(!sets.length){ $('saved-body').innerHTML='<div class="empty">No measurement sets saved yet.</div>'; return; }
+  $('saved-body').innerHTML = sets.slice().reverse().map((s,ri)=>{
+    const i=sets.length-1-ri;
+    const ms=s.measurements.map(m=>esc(m.label)+' '+m.len+s.unit).join(', ');
+    return '<div class="card" style="margin-bottom:12px;"><div style="display:flex;gap:12px;">'+
+      (s.img?'<img src="'+s.img+'" style="width:90px;height:68px;object-fit:cover;border:1px solid var(--line);border-radius:2px;">':'')+
+      '<div style="flex:1;"><div style="color:var(--cream);">'+(esc(s.loc)||'Unlabeled')+'</div>'+
+      '<div style="color:var(--mute);font-size:13px;margin-top:3px;">'+ms+'</div>'+
+      (s.note?'<div style="color:var(--faint);font-size:12px;margin-top:3px;">'+esc(s.note)+'</div>':'')+
+      '<div style="font-family:var(--mono);font-size:10px;color:var(--steel);margin-top:4px;">'+esc((s.time||'').replace('T',' ').slice(0,16))+'</div></div>'+
+      '<button class="btn ghost sm" data-sdel="'+i+'" style="align-self:start;">Remove</button></div></div>';
+  }).join('');
+  $('saved-body').querySelectorAll('[data-sdel]').forEach(b=>b.addEventListener('click',()=>{ sets.splice(+b.dataset.sdel,1); store.set(KEY,sets); renderSaved(); }));
+}
+$('clear').onclick=()=>{ if(confirm('Clear all saved measurement sets?')){ sets=[]; store.set(KEY,sets); renderSaved(); } };
+$('export').onclick=()=>{ const b=new Blob([JSON.stringify(sets,null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='gauge-measurements.json'; a.click(); URL.revokeObjectURL(a.href); };
+
+/* ---------- tabs ---------- */
+const tabs=document.querySelectorAll('.tab');
+tabs.forEach(t=>t.addEventListener('click',()=>{
+  tabs.forEach(x=>x.setAttribute('aria-selected',x===t?'true':'false'));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active',p.id===t.dataset.tab));
+}));
+
+renderSaved();
+</script>
+</body>
+</html>

@@ -115,15 +115,34 @@ const PHASES=[
   }
 ];
 
+const PHASE_LINKS = [
+  [{label:'Footprint', href:'footprint.html', key:'rampart.footprint.findings'}],
+  [{label:'Sweep', href:'sweep.html', key:'rampart.sweep.findings'}],
+  [{label:'Sweep', href:'sweep.html', key:'rampart.sweep.findings'},{label:'Tumbler', href:'tumbler.html', key:'rampart.tumbler.findings'}],
+  [{label:'Credential', href:'credential.html', key:'rampart.credential.findings'},{label:'Aether', href:'aether.html', key:'rampart.aether.findings'}],
+  [{label:'Aether', href:'aether.html', key:'rampart.aether.findings'}],
+  [{label:'Sweep', href:'sweep.html', key:'rampart.sweep.findings'},{label:'Footprint', href:'footprint.html', key:'rampart.footprint.findings'}],
+  [{label:'Safeconduct', href:'safeconduct.html'},{label:'Docket', href:'docket.html'}],
+  [{label:'Docket', href:'docket.html'}]
+];
+function readFindings(key){ try{ const v=localStorage.getItem(key); const a=v?JSON.parse(v):[]; return Array.isArray(a)?a:[]; }catch(e){ return []; } }
+
 const chain=document.getElementById('chain');
 chain.innerHTML=PHASES.map((p,i)=>{
   const ind='<div class="lab">Exposure indicators</div><ul class="ilist">'+p.indicators.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul>';
   const fix='<div class="lab">'+(i===PHASES.length-1?'How the kit maps to it':'Remediation')+'</div><ul class="ilist fix">'+p.fix.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul>';
   const eco=p.eco?'<div class="eco">'+esc(p.eco)+'</div>':'';
   const mod=p.module?'<div class="modtag">'+esc(p.module)+'</div>':'';
+  const jump=(PHASE_LINKS[i]||[]).map(m=>{
+    let badge='';
+    if(m.key){ const arr=readFindings(m.key); const crit=arr.filter(f=>f.posture==='crit').length;
+      badge=' <span style="font-family:var(--mono);font-size:10px;background:var(--plate);border:1px solid var(--line);border-radius:10px;padding:1px 7px;color:'+(crit?'var(--crimson)':'var(--mute)')+';">'+arr.length+(crit?' · '+crit+' crit':'')+'</span>'; }
+    return '<a href="'+m.href+'" style="display:inline-flex;align-items:center;gap:4px;text-decoration:none;color:var(--cream);font-family:var(--mono);font-size:11px;letter-spacing:0.04em;border:1px solid var(--line-2);border-radius:3px;padding:5px 10px;margin:4px 6px 0 0;">Open '+esc(m.label)+badge+'</a>';
+  }).join('');
+  const jumpRow=jump?'<div class="lab" style="margin-top:14px;">Assess this phase</div><div>'+jump+'</div>':'';
   return '<div class="acc'+(i===0?' open':'')+'">'+
     '<button data-i="'+i+'"><span class="ph-no">'+String(i+1).padStart(2,'0')+'</span><span class="ph-name">'+esc(p.name)+'</span><span class="chev">&rsaquo;</span></button>'+
-    '<div class="body"><div class="lab" style="margin-top:4px;">The vector</div><div class="vector">'+esc(p.vector)+'</div>'+ind+fix+mod+eco+'</div></div>';
+    '<div class="body"><div class="lab" style="margin-top:4px;">The vector</div><div class="vector">'+esc(p.vector)+'</div>'+ind+fix+mod+jumpRow+eco+'</div></div>';
 }).join('');
 
 chain.querySelectorAll('.acc > button').forEach(b=>b.addEventListener('click',()=>{

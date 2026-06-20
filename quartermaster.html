@@ -65,7 +65,14 @@
         </div>
       </div>
     </div>
+    <div id="auth-banner"></div>
     <div id="kit"></div>
+    <div class="card" id="closeout-card" style="display:none;">
+      <div class="cat-h"><h3>Close-out and return</h3><span class="gate-pill" id="ret-gauge"></span></div>
+      <p style="color:var(--mute);font-size:14px;margin-top:0;">After the engagement, confirm every item that went out has come back. Sensitive items carry their chain-of-custody note.</p>
+      <div id="closeout"></div>
+    </div>
+    <div class="row-actions"><button class="btn ghost sm" id="toggle-closeout">Show close-out</button></div>
   </section>
 </main>
 
@@ -198,6 +205,47 @@ function render(){
 $('reset').onclick=()=>{ if(confirm('Reset the loadout to the default checklist? This clears your checks and added items.')){ kit=DEFAULT(); save(); render(); } };
 $('export').onclick=()=>{ const b=new Blob([JSON.stringify(kit,null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='quartermaster-loadout.json'; a.click(); URL.revokeObjectURL(a.href); };
 $('print').onclick=()=>window.print();
+
+/* ---------- authorization pull from Safeconduct ---------- */
+function renderAuthBanner(){
+  const auth = store.get('rampart.safeconduct.auth', null);
+  const el = $('auth-banner');
+  if(auth && auth.eng){
+    el.innerHTML = '<div class="card" style="border-color:var(--olive);"><div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;"><div style="flex:1;min-width:200px;"><strong style="color:var(--cream);">Authorization letter on file</strong><div style="color:var(--mute);font-size:14px;">Engagement: '+esc(auth.eng)+'. You can confirm the authorization items from it.</div></div><button class="btn sm" id="auth-pull">Confirm authorization items</button></div></div>';
+    $('auth-pull').onclick=()=>{
+      const ci = kit.findIndex(c=>c.core);
+      if(ci<0) return;
+      kit[ci].items.forEach(it=>{ it.packed=true; });
+      save(); render();
+    };
+  } else {
+    el.innerHTML = '<div class="card" style="border-style:dashed;"><div style="color:var(--mute);font-size:14px;">No authorization letter found in Safeconduct yet. Fill and save the letter there to confirm these items from it.</div></div>';
+  }
+}
+
+/* ---------- close-out / return inventory ---------- */
+let closeoutOpen = false;
+$('toggle-closeout').onclick=()=>{ closeoutOpen=!closeoutOpen; $('closeout-card').style.display=closeoutOpen?'block':'none'; $('toggle-closeout').textContent=closeoutOpen?'Hide close-out':'Show close-out'; if(closeoutOpen) renderCloseout(); };
+function renderCloseout(){
+  const packed=[]; kit.forEach((c,ci)=>c.items.forEach((it,ii)=>{ if(it.packed) packed.push({ci,ii,it,cat:c.cat}); }));
+  let ret=0; packed.forEach(p=>{ if(p.it.returned) ret++; });
+  $('ret-gauge').textContent = ret+' / '+packed.length+' returned';
+  if(!packed.length){ $('closeout').innerHTML='<div class="empty" style="display:block;">Nothing packed yet. Items you check as packed appear here for return.</div>'; return; }
+  $('closeout').innerHTML = packed.map(p=>
+    '<div class="item'+(p.it.returned?' packed':'')+'">'+
+    '<input type="checkbox" data-ret="'+p.ci+'.'+p.ii+'"'+(p.it.returned?' checked':'')+'>'+
+    '<div class="nm"><span class="lab">'+esc(p.it.name)+'</span>'+
+    (p.it.sensitive?'<span class="caution">sensitive</span>':'')+
+    (p.it.note?'<div class="ser" style="color:var(--faint);font-size:12px;">'+esc(p.it.note)+'</div>':'')+
+    '</div></div>'
+  ).join('');
+  $('closeout').querySelectorAll('[data-ret]').forEach(b=>b.addEventListener('change',()=>{
+    const [ci,ii]=b.dataset.ret.split('.').map(Number); kit[ci].items[ii].returned=b.checked; save(); renderCloseout();
+  }));
+}
+
+const _origRender = render;
+render = function(){ _origRender(); renderAuthBanner(); if(closeoutOpen) renderCloseout(); };
 render();
 </script>
 </body>

@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<!-- EXHIBIT (Field Instrument 036, Mod 12) - Rampart Field Kit. License: GPL-3.0 -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EXHIBIT - Rampart Field Kit</title>
+<meta name="description" content="Tamper-evident photo evidence register. Timestamped, geotagged, and hash chained, runs offline.">
+<link rel="stylesheet" href="theme.css">
+<style>
+  .cam { width:100%; max-width:440px; display:block; background:#000; border:1px solid var(--line-2); border-radius:3px; aspect-ratio:4/3; object-fit:cover; }
+  .shot { width:100%; max-width:440px; display:none; border:1px solid var(--line-2); border-radius:3px; }
+  .ev-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:16px; margin-top:16px; }
+  .ev { background:var(--plate); border:1px solid var(--line); border-radius:var(--rad); overflow:hidden; }
+  .ev img { width:100%; display:block; border-bottom:1px solid var(--line); }
+  .ev .meta { padding:11px 13px; }
+  .ev .cap { color:var(--cream); font-size:14px; }
+  .ev .sub { font-family:var(--mono); font-size:10.5px; color:var(--steel); letter-spacing:0.04em; margin-top:5px; line-height:1.6; word-break:break-all; }
+  .ev .seq { font-family:var(--mono); font-size:10px; letter-spacing:0.16em; text-transform:uppercase; color:var(--rust); }
+  .vstate { display:inline-block; font-family:var(--display); font-weight:700; letter-spacing:0.08em; text-transform:uppercase; padding:7px 14px; border-radius:3px; font-size:14px; }
+  .vstate.ok { color:var(--olive); border:1px solid var(--olive); background:rgba(132,149,95,0.10); }
+  .vstate.bad { color:var(--crimson); border:1px solid var(--crimson); background:rgba(187,69,58,0.12); }
+  .hash { font-family:var(--mono); font-size:11px; color:var(--faint); word-break:break-all; }
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#15191c">
+<link rel="apple-touch-icon" href="icon-192.png">
+<script src="gate.js"></script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</head>
+<body>
+<div class="band"><span>Authorized assessment use only</span></div>
+
+<header class="masthead">
+  <div class="wrap">
+    <div class="crumbs"><a href="index.html">Rampart</a><span class="sep">/</span><span>Mod 12</span><span class="sep">/</span><span>Exhibit</span></div>
+    <div class="kit-title"><span class="name">Exhibit</span><span class="no">036 · 12</span></div>
+    <div class="kit-sub">Evidence Register</div>
+    <p class="kit-lede">Capture photo evidence that holds up. Each exhibit is timestamped, optionally geotagged, fingerprinted with SHA-256, and linked into a hash chain, so a single altered or removed image breaks the chain and shows. Nothing leaves the device.</p>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" aria-selected="true"  data-tab="capture">Capture</button>
+    <button class="tab" role="tab" aria-selected="false" data-tab="evidence">Evidence</button>
+    <button class="tab" role="tab" aria-selected="false" data-tab="verify">Verify</button>
+  </div>
+
+  <!-- CAPTURE -->
+  <section class="panel active" id="capture">
+    <div class="card">
+      <h3>Capture an exhibit</h3>
+      <video id="cam" class="cam" playsinline muted></video>
+      <img id="shot" class="shot" alt="captured exhibit">
+      <div class="row-actions" style="margin-top:12px;">
+        <button class="btn" id="cam-start">Start camera</button>
+        <button class="btn" id="cam-shot" style="display:none;">Capture frame</button>
+        <button class="btn ghost" id="cam-retake" style="display:none;">Retake</button>
+        <label class="btn ghost" for="file-in" style="cursor:pointer;">Use a photo</label>
+        <input type="file" id="file-in" accept="image/*" capture="environment" style="display:none;">
+      </div>
+    </div>
+    <div class="card">
+      <label class="fld"><span>Caption</span><input id="cap" placeholder="What this shows, e.g. Grade 3 deadbolt on rear door"></label>
+      <div class="two-col">
+        <label class="fld"><span>Location label</span><input id="loc" placeholder="e.g. Rear entry, Building C"></label>
+        <label class="switch" style="align-self:end;padding-bottom:12px;"><input type="checkbox" id="geo" checked> Geotag with GPS</label>
+      </div>
+      <div id="geo-note" class="statline" style="margin-bottom:12px;"></div>
+      <div class="row-actions"><button class="btn" id="add" disabled>Add to register</button><span class="statline" id="add-stat" style="align-self:center;"></span></div>
+    </div>
+  </section>
+
+  <!-- EVIDENCE -->
+  <section class="panel" id="evidence">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+        <h3 style="margin:0;">Evidence register</h3>
+        <div class="row-actions" style="margin:0;">
+          <button class="btn ghost sm" id="export">Export bundle</button>
+          <button class="btn ghost sm" id="clear">Clear</button>
+        </div>
+      </div>
+      <div id="reg-summary" class="statline" style="margin-top:12px;"></div>
+      <div id="reg" class="ev-grid"></div>
+    </div>
+  </section>
+
+  <!-- VERIFY -->
+  <section class="panel" id="verify">
+    <div class="card">
+      <h3>Verify this register</h3>
+      <p style="color:var(--mute);font-size:15px;">Recompute every fingerprint and walk the chain. If any image was altered, replaced, or removed, the chain breaks at that point.</p>
+      <div class="row-actions"><button class="btn" id="verify-self">Verify chain</button></div>
+      <div id="verify-self-out" style="margin-top:14px;"></div>
+    </div>
+    <div class="card">
+      <h3>Verify an exported bundle</h3>
+      <p style="color:var(--mute);font-size:15px;">Load an exported evidence bundle to confirm its images are intact and its chain is unbroken.</p>
+      <div class="row-actions"><button class="btn ghost" id="verify-file-btn">Load and verify</button><input type="file" id="verify-file" accept="application/json,.json" style="display:none;"></div>
+      <div id="verify-file-out" style="margin-top:14px;"></div>
+    </div>
+  </section>
+</main>
+
+<footer class="wrap foot">
+  <span><a href="index.html" style="color:var(--mute);">&larr; Back to kit</a></span>
+  <span>Exhibit · Mod 12</span>
+</footer>
+
+<script>
+const $ = id => document.getElementById(id);
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+const store = {
+  get(k,d){ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):d; }catch(e){ return d; } },
+  set(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); return true; }catch(e){ return false; } }
+};
+const KEY='rampart.exhibit.log';
+let log = store.get(KEY, []);
+
+/* ---------- hashing ---------- */
+async function sha256(str){
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+function geoStr(g){ return g ? g.lat.toFixed(6)+','+g.lon.toFixed(6)+'@'+Math.round(g.acc)+'m' : 'none'; }
+async function chainHash(prev, e){
+  return sha256([prev, e.imageHash, e.time, e.caption||'', e.loc||'', geoStr(e.geo)].join('|'));
+}
+
+/* ---------- camera ---------- */
+let stream=null, captured=null;
+const cam=$('cam'), shot=$('shot');
+$('cam-start').onclick=async()=>{
+  try{
+    stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:'environment' } });
+    cam.srcObject=stream; await cam.play();
+    cam.style.display='block'; shot.style.display='none';
+    $('cam-start').style.display='none'; $('cam-shot').style.display='inline-block'; $('cam-retake').style.display='none';
+  }catch(e){ $('add-stat').textContent='Camera unavailable, use a photo'; }
+};
+$('cam-shot').onclick=()=>{
+  const w=cam.videoWidth||1024, h=cam.videoHeight||768; const max=1280;
+  let cw=w, ch=h; if(cw>ch&&cw>max){ch=Math.round(ch*max/cw);cw=max;} else if(ch>max){cw=Math.round(cw*max/ch);ch=max;}
+  const cv=document.createElement('canvas'); cv.width=cw; cv.height=ch; cv.getContext('2d').drawImage(cam,0,0,cw,ch);
+  captured=cv.toDataURL('image/jpeg',0.6);
+  showCaptured();
+};
+$('cam-retake').onclick=()=>{ captured=null; shot.style.display='none'; cam.style.display='block'; $('cam-shot').style.display='inline-block'; $('cam-retake').style.display='none'; setReady(); };
+$('file-in').onchange=e=>{
+  const file=e.target.files[0]; if(!file) return;
+  const img=new Image(), rd=new FileReader();
+  rd.onload=()=>{ img.onload=()=>{
+    const max=1280; let w=img.width,h=img.height;
+    if(w>h&&w>max){h=Math.round(h*max/w);w=max;} else if(h>max){w=Math.round(w*max/h);h=max;}
+    const cv=document.createElement('canvas'); cv.width=w; cv.height=h; cv.getContext('2d').drawImage(img,0,0,w,h);
+    captured=cv.toDataURL('image/jpeg',0.6); showCaptured();
+  }; img.src=rd.result; };
+  rd.readAsDataURL(file); e.target.value='';
+};
+function showCaptured(){
+  if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; }
+  shot.src=captured; shot.style.display='block'; cam.style.display='none';
+  $('cam-start').style.display='inline-block'; $('cam-start').textContent='Restart camera';
+  $('cam-shot').style.display='none'; $('cam-retake').style.display='inline-block';
+  setReady();
+}
+function setReady(){ $('add').disabled = !captured; }
+
+/* ---------- geolocation ---------- */
+function getGeo(){
+  return new Promise(res=>{
+    if(!$('geo').checked || !navigator.geolocation){ res(null); return; }
+    navigator.geolocation.getCurrentPosition(
+      p=>res({ lat:p.coords.latitude, lon:p.coords.longitude, acc:p.coords.accuracy }),
+      ()=>res(null), { enableHighAccuracy:true, timeout:8000, maximumAge:30000 }
+    );
+  });
+}
+
+/* ---------- add exhibit ---------- */
+$('add').onclick=async()=>{
+  if(!captured) return;
+  $('add').disabled=true; $('add-stat').textContent='Hashing and locating';
+  const geo = await getGeo();
+  const e = {
+    id: 'x'+Date.now().toString(36),
+    time: new Date().toISOString(),
+    caption: $('cap').value.trim(),
+    loc: $('loc').value.trim(),
+    geo,
+    img: captured
+  };
+  e.imageHash = await sha256(e.img);
+  const prev = log.length ? log[log.length-1].chain : '0';
+  e.prev = prev;
+  e.chain = await chainHash(prev, e);
+  log.push(e);
+  if(!store.set(KEY, log)){
+    log.pop();
+    $('add-stat').textContent='Storage full. Export and clear the register.';
+    $('add').disabled=false; return;
+  }
+  captured=null; shot.style.display='none'; $('cap').value=''; $('loc').value='';
+  $('add-stat').textContent='Added exhibit '+log.length+(geo?' with location':', no location');
+  $('cam-retake').style.display='none';
+  renderReg();
+};
+
+/* ---------- register ---------- */
+function shortHash(h){ return h ? h.slice(0,12) : '-'; }
+function renderReg(){
+  $('reg-summary').textContent = log.length ? (log.length+' exhibit'+(log.length===1?'':'s')+' on file') : '';
+  if(!log.length){ $('reg').innerHTML='<div class="empty" style="grid-column:1/-1;">No exhibits captured yet.</div>'; return; }
+  $('reg').innerHTML = log.map((e,i)=>{
+    const g = e.geo ? esc(e.geo.lat.toFixed(5)+', '+e.geo.lon.toFixed(5)+' ('+Math.round(e.geo.acc)+'m)') : 'No location';
+    const map = e.geo ? ' · <a href="https://www.google.com/maps?q='+e.geo.lat+','+e.geo.lon+'" target="_blank" rel="noopener" style="color:var(--steel);">map</a>' : '';
+    return '<div class="ev"><img src="'+e.img+'" alt="">'+
+      '<div class="meta"><div class="seq">Exhibit '+String(i+1).padStart(3,'0')+'</div>'+
+      '<div class="cap">'+(esc(e.caption)||'<span style="color:var(--faint);">No caption</span>')+'</div>'+
+      '<div class="sub">'+esc((e.time||'').replace('T',' ').slice(0,19))+'<br>'+(esc(e.loc)||'-')+'<br>'+g+map+'<br>img '+shortHash(e.imageHash)+'<br>seal '+shortHash(e.chain)+'</div></div></div>';
+  }).join('');
+}
+$('clear').onclick=()=>{ if(confirm('Clear the evidence register? Export first if you need to keep it.')){ log=[]; store.set(KEY,log); renderReg(); } };
+$('export').onclick=()=>{
+  const bundle={ kind:'rampart-evidence-bundle', exported:new Date().toISOString(), count:log.length, exhibits:log };
+  const b=new Blob([JSON.stringify(bundle,null,2)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='exhibit-bundle.json'; a.click(); URL.revokeObjectURL(a.href);
+};
+
+/* ---------- verify ---------- */
+async function verifyChain(entries){
+  let prev='0';
+  for(let i=0;i<entries.length;i++){
+    const e=entries[i];
+    const ih=await sha256(e.img||'');
+    if(ih!==e.imageHash) return { ok:false, at:i+1, why:'image does not match its fingerprint' };
+    if(e.prev!==prev) return { ok:false, at:i+1, why:'chain link does not match the previous exhibit' };
+    const ch=await chainHash(prev, e);
+    if(ch!==e.chain) return { ok:false, at:i+1, why:'seal does not match the recomputed hash' };
+    prev=e.chain;
+  }
+  return { ok:true, count:entries.length };
+}
+$('verify-self').onclick=async()=>{
+  if(!log.length){ $('verify-self-out').innerHTML='<div class="statline">Nothing to verify.</div>'; return; }
+  $('verify-self-out').innerHTML='<div class="statline">Verifying...</div>';
+  const r=await verifyChain(log);
+  $('verify-self-out').innerHTML = r.ok
+    ? '<div class="vstate ok">Chain intact</div><div class="hash" style="margin-top:10px;">'+r.count+' exhibits verified. Final seal '+shortHash(log[log.length-1].chain)+'</div>'
+    : '<div class="vstate bad">Chain broken at exhibit '+r.at+'</div><div class="hash" style="margin-top:10px;">'+esc(r.why)+'</div>';
+};
+$('verify-file-btn').onclick=()=>$('verify-file').click();
+$('verify-file').onchange=async e=>{
+  const file=e.target.files[0]; if(!file) return;
+  try{
+    const obj=JSON.parse(await file.text());
+    const entries = obj.exhibits || (Array.isArray(obj)?obj:null);
+    if(!entries) throw new Error('no exhibits');
+    $('verify-file-out').innerHTML='<div class="statline">Verifying...</div>';
+    const r=await verifyChain(entries);
+    $('verify-file-out').innerHTML = r.ok
+      ? '<div class="vstate ok">Bundle intact</div><div class="hash" style="margin-top:10px;">'+r.count+' exhibits verified.</div>'
+      : '<div class="vstate bad">Bundle broken at exhibit '+r.at+'</div><div class="hash" style="margin-top:10px;">'+esc(r.why)+'</div>';
+  }catch(err){ $('verify-file-out').innerHTML='<div class="vstate bad">Not a valid evidence bundle.</div>'; }
+  e.target.value='';
+};
+
+/* ---------- tabs ---------- */
+const tabs=document.querySelectorAll('.tab');
+tabs.forEach(t=>t.addEventListener('click',()=>{
+  tabs.forEach(x=>x.setAttribute('aria-selected',x===t?'true':'false'));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active',p.id===t.dataset.tab));
+}));
+
+renderReg();
+</script>
+</body>
+</html>

@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<!-- FLUX (Field Instrument 036, Mod 13) - Rampart Field Kit. License: GPL-3.0 -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FLUX - Rampart Field Kit</title>
+<meta name="description" content="Magnetometer detector. Finds magnetic locks, door contacts, and concealed ferrous hardware. Runs offline.">
+<link rel="stylesheet" href="theme.css">
+<style>
+  .readout { text-align:center; padding:22px 0 8px; }
+  .readout .big { font-family:var(--display); font-weight:800; font-size:62px; line-height:1; color:var(--cream); letter-spacing:0.02em; }
+  .readout .big.hot { color:var(--rust); }
+  .readout .unit { font-family:var(--mono); font-size:13px; letter-spacing:0.22em; text-transform:uppercase; color:var(--steel); margin-top:6px; }
+  .gauge { height:16px; background:var(--ink); border:1px solid var(--line-2); border-radius:3px; overflow:hidden; margin:18px 0 6px; }
+  .gauge > i { display:block; height:100%; width:0%; background:linear-gradient(90deg,var(--steel),var(--amber),var(--crimson)); transition:width .06s linear; }
+  .statgrid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-top:14px; }
+  .stat { background:var(--plate); border:1px solid var(--line); border-radius:var(--rad); padding:10px 12px; text-align:center; }
+  .stat .l { font-family:var(--mono); font-size:9.5px; letter-spacing:0.16em; text-transform:uppercase; color:var(--steel); }
+  .stat .v { font-family:var(--display); font-weight:700; font-size:20px; color:var(--cream); margin-top:3px; }
+  .sens-row { display:flex; align-items:center; gap:12px; margin-top:10px; }
+  .sens-row input[type=range]{ flex:1; }
+  .switch { display:flex; align-items:center; gap:8px; font-family:var(--mono); font-size:11px; letter-spacing:0.14em; text-transform:uppercase; color:var(--mute); cursor:pointer; }
+  .switch input { width:auto; }
+  .reflist { color:var(--mute); font-size:14.5px; line-height:1.8; }
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#15191c">
+<link rel="apple-touch-icon" href="icon-192.png">
+<script src="gate.js"></script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</head>
+<body>
+<div class="band"><span>Authorized assessment use only</span></div>
+
+<header class="masthead">
+  <div class="wrap">
+    <div class="crumbs"><a href="index.html">Rampart</a><span class="sep">/</span><span>Mod 13</span><span class="sep">/</span><span>Flux</span></div>
+    <div class="kit-title"><span class="name">Flux</span><span class="no">036 · 13</span></div>
+    <div class="kit-sub">Magnetometer Detector</div>
+    <p class="kit-lede">Read the magnetic field through the device magnetometer, calibrate to the ambient earth field, then sweep a surface. Magnetic locks, the magnets in door contacts, and concealed ferrous hardware all pull the needle. Detection only, nothing is energized.</p>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" aria-selected="true"  data-tab="detector">Detector</button>
+    <button class="tab" role="tab" aria-selected="false" data-tab="marks">Marks</button>
+    <button class="tab" role="tab" aria-selected="false" data-tab="reference">Reference</button>
+  </div>
+
+  <!-- DETECTOR -->
+  <section class="panel active" id="detector">
+    <div class="card">
+      <div class="readout">
+        <div class="big" id="mag">--</div>
+        <div class="unit">microtesla, total field</div>
+      </div>
+      <div class="gauge"><i id="bar"></i></div>
+      <div class="statgrid">
+        <div class="stat"><div class="l">Baseline</div><div class="v" id="base">--</div></div>
+        <div class="stat"><div class="l">Deviation</div><div class="v" id="dev">--</div></div>
+        <div class="stat"><div class="l">Peak</div><div class="v" id="peak">--</div></div>
+      </div>
+      <div class="statline" id="status" style="margin-top:14px;text-align:center;"></div>
+    </div>
+    <div class="card">
+      <div class="row-actions">
+        <button class="btn" id="start">Start detector</button>
+        <button class="btn ghost" id="calibrate" disabled>Calibrate baseline</button>
+        <button class="btn ghost" id="peakreset" disabled>Reset peak</button>
+      </div>
+      <div class="sens-row"><span class="statline">Sensitivity</span><input type="range" id="sens" min="1" max="10" value="5"></div>
+      <label class="switch" style="margin-top:12px;"><input type="checkbox" id="audio"> Audio feedback, ticks faster near a source</label>
+    </div>
+    <div class="card">
+      <h3>Mark a reading</h3>
+      <p style="color:var(--mute);font-size:14px;margin-top:0;">Log the current peak deviation at a spot, then record the finding itself in Sweep.</p>
+      <div class="two-col">
+        <label class="fld"><span>Location</span><input id="m-loc" placeholder="e.g. Rear door header"></label>
+        <label class="fld"><span>Note</span><input id="m-note" placeholder="e.g. Strong field, likely maglock"></label>
+      </div>
+      <div class="row-actions"><button class="btn" id="mark" disabled>Mark current reading</button></div>
+    </div>
+  </section>
+
+  <!-- MARKS -->
+  <section class="panel" id="marks">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+        <h3 style="margin:0;">Marked readings</h3>
+        <div class="row-actions" style="margin:0;">
+          <button class="btn ghost sm" id="export">Export JSON</button>
+          <button class="btn ghost sm" id="clear">Clear</button>
+        </div>
+      </div>
+      <div id="mark-body" style="margin-top:14px;"></div>
+    </div>
+  </section>
+
+  <!-- REFERENCE -->
+  <section class="panel" id="reference">
+    <div class="card">
+      <h3>What Flux detects</h3>
+      <div class="reflist">
+        Magnetic locks (maglocks), which hold with a strong permanent or electromagnetic field at the door header.<br>
+        Door and window contacts, where a reed switch is held by a small magnet on the moving leaf.<br>
+        Concealed ferrous hardware: strike plates, reinforcing, hinges, fasteners, and rebar behind a surface.<br>
+        Speakers, motors, and transformers, which also carry strong fields and can be mistaken for hardware.
+      </div>
+    </div>
+    <div class="card">
+      <h3>How to read it</h3>
+      <div class="reflist">
+        The ambient earth field runs roughly 25 to 65 microtesla. Calibrate against it with the device held still and away from metal.<br>
+        Sweep slowly and watch the deviation, not the raw number. A door contact magnet nudges it; a maglock pins it.<br>
+        Sensors vary by device and drift with temperature and orientation. Recalibrate if the baseline wanders.<br>
+        Flux identifies the presence of a field. Record what it means as a finding in Sweep and the proof in Exhibit.
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="wrap foot">
+  <span><a href="index.html" style="color:var(--mute);">&larr; Back to kit</a></span>
+  <span>Flux · Mod 13</span>
+</footer>
+
+<script>
+const $ = id => document.getElementById(id);
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+const store = {
+  get(k,d){ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):d; }catch(e){ return d; } },
+  set(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){} }
+};
+const KEY='rampart.flux.log';
+let marks = store.get(KEY, []);
+
+let sensor=null, running=false, smooth=0, baseline=0, peakDev=0, current=0, currentDev=0;
+
+function setStatus(t){ $('status').textContent=t; }
+function fullScale(){ return 550 - (+$('sens').value)*50; } // sens 1->500, 10->50 uT
+function onReading(m){
+  smooth = smooth ? smooth*0.7 + m*0.3 : m;
+  current = smooth;
+  currentDev = Math.abs(current - baseline);
+  if(currentDev>peakDev){ peakDev=currentDev; $('peak').textContent=peakDev.toFixed(0); }
+  $('mag').textContent = current.toFixed(1);
+  $('dev').textContent = (baseline? currentDev.toFixed(1) : '--');
+  const pct = Math.min(100, currentDev / fullScale() * 100);
+  $('bar').style.width = pct + '%';
+  $('mag').classList.toggle('hot', pct>=60);
+}
+
+function startMag(){
+  if(!('Magnetometer' in window)){
+    setStatus('Magnetometer not available in this browser. Chrome on Android over HTTPS supports it.');
+    return false;
+  }
+  try{
+    sensor = new Magnetometer({ frequency: 20, referenceFrame:'device' });
+    sensor.addEventListener('reading', ()=>{
+      if(sensor.x==null) return;
+      onReading(Math.sqrt(sensor.x*sensor.x + sensor.y*sensor.y + sensor.z*sensor.z));
+    });
+    sensor.addEventListener('error', e=>{
+      const n = e.error && e.error.name;
+      setStatus(n==='NotAllowedError' ? 'Sensor permission denied. Allow motion and sensors for this site.' :
+                n==='NotReadableError' ? 'No magnetometer on this device.' : 'Sensor error.');
+      stop();
+    });
+    sensor.start();
+    return true;
+  }catch(e){
+    setStatus('Could not start the magnetometer. It may need sensor permissions enabled.');
+    return false;
+  }
+}
+
+async function start(){
+  if(running){ stop(); return; }
+  // request permission where the Permissions API gates it
+  if(navigator.permissions && navigator.permissions.query){
+    try{ const st=await navigator.permissions.query({name:'magnetometer'}); if(st.state==='denied'){ setStatus('Sensor permission denied in browser settings.'); return; } }catch(e){}
+  }
+  if(!startMag()) return;
+  running=true; smooth=0;
+  $('start').textContent='Stop detector'; $('start').classList.add('armed');
+  $('calibrate').disabled=false; $('peakreset').disabled=false; $('mark').disabled=false;
+  setStatus('Live. Calibrate against the ambient field to begin.');
+  if($('audio').checked) startAudio();
+}
+function stop(){
+  running=false;
+  if(sensor){ try{ sensor.stop(); }catch(e){} sensor=null; }
+  stopAudio();
+  $('start').textContent='Start detector'; $('start').classList.remove('armed');
+  $('calibrate').disabled=true; $('peakreset').disabled=true; $('mark').disabled=true;
+  $('mag').classList.remove('hot'); $('bar').style.width='0%';
+  setStatus('Stopped.');
+}
+$('start').onclick=start;
+$('calibrate').onclick=()=>{
+  if(!running) return;
+  setStatus('Calibrating, hold still and away from metal...');
+  const samples=[]; const iv=setInterval(()=>samples.push(current), 80);
+  setTimeout(()=>{
+    clearInterval(iv);
+    baseline = samples.length ? samples.reduce((a,b)=>a+b,0)/samples.length : current;
+    peakDev=0; $('peak').textContent='0';
+    $('base').textContent = baseline.toFixed(1);
+    setStatus('Calibrated at '+baseline.toFixed(1)+' uT. Sweep slowly.');
+  }, 1600);
+};
+$('peakreset').onclick=()=>{ peakDev=0; $('peak').textContent='0'; };
+$('audio').onchange=()=>{ if(running && $('audio').checked) startAudio(); else stopAudio(); };
+
+/* ---------- audio feedback ---------- */
+let actx=null, tickTimer=null;
+function startAudio(){
+  stopAudio();
+  try{ actx = actx || new (window.AudioContext||window.webkitAudioContext)(); }catch(e){ return; }
+  const tick=()=>{
+    if(!running || !$('audio').checked){ return; }
+    const pct = Math.min(1, currentDev / fullScale());
+    try{
+      const o=actx.createOscillator(), g=actx.createGain();
+      o.type='square'; o.frequency.value=520+pct*900; o.connect(g); g.connect(actx.destination);
+      g.gain.value=0.0001; o.start();
+      g.gain.exponentialRampToValueAtTime(0.12, actx.currentTime+0.005);
+      g.gain.exponentialRampToValueAtTime(0.0001, actx.currentTime+0.05);
+      o.stop(actx.currentTime+0.06);
+    }catch(e){}
+    const interval = 600 - pct*560; // 600ms quiet -> 40ms hot
+    tickTimer = setTimeout(tick, Math.max(40, interval));
+  };
+  tick();
+}
+function stopAudio(){ if(tickTimer){ clearTimeout(tickTimer); tickTimer=null; } }
+
+/* ---------- marks ---------- */
+$('mark').onclick=()=>{
+  if(!running) return;
+  marks.push({ time:new Date().toISOString(), loc:$('m-loc').value.trim(), note:$('m-note').value.trim(),
+               field:+current.toFixed(1), baseline:+baseline.toFixed(1), deviation:+peakDev.toFixed(1) });
+  store.set(KEY, marks);
+  $('m-loc').value=''; $('m-note').value='';
+  setStatus('Marked reading at peak deviation '+peakDev.toFixed(0)+' uT.');
+  renderMarks();
+};
+function renderMarks(){
+  if(!marks.length){ $('mark-body').innerHTML='<div class="empty">No readings marked yet.</div>'; return; }
+  let h='<table class="tbl"><thead><tr><th class="mono">Time</th><th>Location</th><th class="mono">Field</th><th class="mono">Peak dev</th><th>Note</th><th></th></tr></thead><tbody>';
+  marks.slice().reverse().forEach((m,ri)=>{
+    const i=marks.length-1-ri;
+    h+='<tr><td class="mono" style="font-size:11px;">'+esc((m.time||'').replace('T',' ').slice(0,19))+'</td><td>'+esc(m.loc||'-')+'</td><td class="mono">'+esc(m.field)+'</td><td class="mono">'+esc(m.deviation)+'</td><td style="color:var(--mute);">'+esc(m.note||'')+'</td><td><button class="btn ghost sm" data-del="'+i+'">Remove</button></td></tr>';
+  });
+  $('mark-body').innerHTML=h+'</tbody></table>';
+  $('mark-body').querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click',()=>{ marks.splice(+b.dataset.del,1); store.set(KEY,marks); renderMarks(); }));
+}
+$('clear').onclick=()=>{ if(confirm('Clear all marked readings?')){ marks=[]; store.set(KEY,marks); renderMarks(); } };
+$('export').onclick=()=>{ const b=new Blob([JSON.stringify(marks,null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='flux-marks.json'; a.click(); URL.revokeObjectURL(a.href); };
+
+/* ---------- tabs ---------- */
+const tabs=document.querySelectorAll('.tab');
+tabs.forEach(t=>t.addEventListener('click',()=>{
+  tabs.forEach(x=>x.setAttribute('aria-selected',x===t?'true':'false'));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active',p.id===t.dataset.tab));
+}));
+
+renderMarks();
+if(!('Magnetometer' in window)) setStatus('Magnetometer not available in this browser. Chrome on Android over HTTPS supports it.');
+</script>
+</body>
+</html>

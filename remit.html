@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<!-- REMIT (Field Instrument 036, Mod 16) - Rampart Field Kit. License: GPL-3.0 -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>REMIT - Rampart Field Kit</title>
+<meta name="description" content="Scope and threat-model planner. Objective, modeled adversary, protected assets, and success criteria for an engagement.">
+<link rel="stylesheet" href="theme.css">
+<style>
+  @media print {
+    .band,.masthead,.tabs,.foot,#plan,.no-print { display:none !important; }
+    body { background:#fff; color:#111; }
+    .remit-doc { color:#111; }
+    .remit-doc h2,.remit-doc h3,.remit-doc .k { color:#000; }
+  }
+  .asset-row { display:grid; grid-template-columns: 1fr auto auto; gap:8px; align-items:center; margin-bottom:8px; }
+  .asset-row input { margin:0; }
+  .remit-doc { max-width:74ch; }
+  .remit-doc h2 { font-family:var(--display); font-weight:800; letter-spacing:0.01em; margin:0 0 4px; }
+  .remit-doc .k { font-family:var(--mono); font-size:10.5px; letter-spacing:0.14em; text-transform:uppercase; color:var(--steel); margin-top:18px; }
+  .remit-doc p,.remit-doc li { color:var(--mute); font-size:14.5px; line-height:1.7; }
+  .chips { display:flex; flex-wrap:wrap; gap:8px; }
+  .chip { display:flex; align-items:center; gap:7px; font-family:var(--mono); font-size:11px; letter-spacing:0.08em; text-transform:uppercase; color:var(--mute); border:1px solid var(--line-2); border-radius:3px; padding:7px 11px; cursor:pointer; }
+  .chip input { width:auto; }
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#15191c">
+<link rel="apple-touch-icon" href="icon-192.png">
+<script src="gate.js"></script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</head>
+<body>
+<div class="band"><span>Authorized assessment use only</span></div>
+
+<header class="masthead">
+  <div class="wrap">
+    <div class="crumbs"><a href="index.html">Rampart</a><span class="sep">/</span><span>Mod 16</span><span class="sep">/</span><span>Remit</span></div>
+    <div class="kit-title"><span class="name">Remit</span><span class="no">036 · 16</span></div>
+    <div class="kit-sub">Scope and Threat Model</div>
+    <p class="kit-lede">Set the engagement before you walk it. Name the objective, the adversary you are modeling against, the assets that matter, and what a useful result looks like. The remit frames the authorization, the survey, and the report.</p>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" aria-selected="true"  data-tab="plan">Plan</button>
+    <button class="tab" role="tab" aria-selected="false" data-tab="remit">Remit</button>
+  </div>
+
+  <!-- PLAN -->
+  <section class="panel active" id="plan">
+    <div class="card">
+      <h3>Objective</h3>
+      <label class="fld"><span>What this engagement is meant to demonstrate</span><textarea id="objective" placeholder="e.g. Determine whether an opportunist could reach the records room from a public entrance during business hours."></textarea></label>
+    </div>
+
+    <div class="card">
+      <h3>Modeled adversary</h3>
+      <label class="fld"><span>Tier</span>
+        <select id="tier">
+          <option value="">Choose a profile to start</option>
+          <option value="opportunist">Opportunist</option>
+          <option value="insider">Insider</option>
+          <option value="activist">Activist or protester</option>
+          <option value="crew">Organized crew</option>
+          <option value="advanced">Advanced and well resourced</option>
+        </select>
+      </label>
+      <label class="fld"><span>Capability</span><textarea id="capability" placeholder="Resources, tools, and skill assumed"></textarea></label>
+      <label class="fld"><span>Motivation</span><textarea id="motivation" placeholder="Why they would act"></textarea></label>
+      <label class="fld"><span>Likely methods</span><textarea id="methods" placeholder="How this adversary tends to operate"></textarea></label>
+    </div>
+
+    <div class="card">
+      <h3>Protected assets</h3>
+      <p style="color:var(--mute);font-size:14px;margin-top:0;">What is worth protecting, ranked. This decides where to weight the survey.</p>
+      <div id="assets"></div>
+      <div class="asset-row">
+        <input id="a-name" placeholder="Asset, e.g. Patient records room">
+        <select id="a-pri" style="width:auto;"><option value="crit">Critical</option><option value="weak">High</option><option value="info">Moderate</option></select>
+        <button class="btn sm" id="a-add">Add</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Priority focus</h3>
+      <p style="color:var(--mute);font-size:14px;margin-top:0;">The phases to weight, mapped to the kit.</p>
+      <div class="chips" id="focus"></div>
+    </div>
+
+    <div class="card">
+      <h3>Success criteria</h3>
+      <label class="fld"><span>What a useful result looks like for the client</span><textarea id="success" placeholder="e.g. A documented path and a prioritized fix list, or a clear statement that the modeled adversary is adequately denied."></textarea></label>
+    </div>
+
+    <div class="card">
+      <h3>Assumptions and constraints</h3>
+      <label class="fld"><span>Boundaries, timing, and anything taken as given</span><textarea id="assumptions" placeholder="e.g. Business hours only. No destructive testing. Network not in scope."></textarea></label>
+      <div class="row-actions"><button class="btn" id="save">Save remit</button><span class="statline" id="save-stat" style="align-self:center;"></span></div>
+    </div>
+  </section>
+
+  <!-- REMIT -->
+  <section class="panel" id="remit">
+    <div class="card">
+      <div class="row-actions no-print" style="margin-bottom:16px;">
+        <button class="btn" id="print">Print / Save PDF</button>
+        <button class="btn ghost sm" id="copy">Copy text</button>
+        <button class="btn ghost sm" id="export">Export JSON</button>
+      </div>
+      <div class="remit-doc" id="remit-doc"></div>
+    </div>
+  </section>
+</main>
+
+<footer class="wrap foot">
+  <span><a href="index.html" style="color:var(--mute);">&larr; Back to kit</a></span>
+  <span>Remit · Mod 16</span>
+</footer>
+
+<script>
+const $ = id => document.getElementById(id);
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+const store = {
+  get(k,d){ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):d; }catch(e){ return d; } },
+  set(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){} }
+};
+const KEY='rampart.remit.plan';
+
+const TIERS={
+  opportunist:{ capability:'Low. No special tools or planning. Acts on what is open and unattended.',
+    motivation:'Theft of opportunity, trespass, or vandalism.',
+    methods:'Tries unlocked doors and gates, tailgates through controlled doors, takes visible unsecured items, and leaves if challenged.' },
+  insider:{ capability:'Holds legitimate access and knows the layout and routines.',
+    motivation:'Personal gain, a grievance, or coercion by a third party.',
+    methods:'Abuses granted access, moves through trusted areas unchallenged, defeats controls that assume good faith, and removes assets during normal activity.' },
+  activist:{ capability:'Moderate, organized around a message, and may act in numbers.',
+    motivation:'Disruption, publicity, or access to make a statement.',
+    methods:'Targets visible or symbolic areas, may breach the perimeter openly, and seeks disruption more than stealth.' },
+  crew:{ capability:'Organized and equipped, planning against a specific target.',
+    motivation:'Financial gain from specific high value assets.',
+    methods:'Reconnoiters first, uses pretext and tools at the weakest point, works to a plan, and keeps an exfiltration route.' },
+  advanced:{ capability:'High. Patient, well resourced, with custom tooling and tradecraft.',
+    motivation:'Strategic. The asset is worth sustained effort.',
+    methods:'Runs long reconnaissance, leans on social engineering, layers its approaches, persists, and keeps the option to return.' }
+};
+const TIER_LABEL={opportunist:'Opportunist',insider:'Insider',activist:'Activist or protester',crew:'Organized crew',advanced:'Advanced and well resourced'};
+
+const FOCUS=[
+  ['recon','Reconnaissance, Footprint'],
+  ['perimeter','Perimeter, Sweep'],
+  ['entry','Entry and bypass, Sweep and Tumbler'],
+  ['cred','Credentials, Credential and Aether'],
+  ['cyber','Cyber-physical, Aether'],
+  ['social','Social engineering, Sweep and Footprint'],
+  ['exfil','Exfiltration, Safeconduct and Docket']
+];
+const PRI_LABEL={crit:'Critical',weak:'High',info:'Moderate'};
+const PRI_PILL={crit:'pill crit',weak:'pill weak',info:'pill info'};
+
+let plan = store.get(KEY, { objective:'', tier:'', capability:'', motivation:'', methods:'', assets:[], focus:[], success:'', assumptions:'' });
+
+/* ---------- focus chips ---------- */
+$('focus').innerHTML = FOCUS.map(([k,lab])=>'<label class="chip"><input type="checkbox" data-focus="'+k+'"> '+esc(lab)+'</label>').join('');
+
+/* ---------- load ---------- */
+function loadForm(){
+  ['objective','capability','motivation','methods','success','assumptions'].forEach(f=>$(f).value=plan[f]||'');
+  $('tier').value=plan.tier||'';
+  FOCUS.forEach(([k])=>{ const c=$('focus').querySelector('[data-focus="'+k+'"]'); if(c) c.checked=(plan.focus||[]).indexOf(k)>=0; });
+  renderAssets();
+}
+$('tier').onchange=function(){
+  const t=TIERS[this.value];
+  if(t){ if(!$('capability').value) $('capability').value=t.capability; if(!$('motivation').value) $('motivation').value=t.motivation; if(!$('methods').value) $('methods').value=t.methods; }
+};
+
+/* ---------- assets ---------- */
+function renderAssets(){
+  if(!plan.assets.length){ $('assets').innerHTML='<div class="empty" style="margin-bottom:10px;">No assets listed yet.</div>'; return; }
+  $('assets').innerHTML = plan.assets.map((a,i)=>
+    '<div class="asset-row"><div>'+esc(a.name)+(a.note?' <span style="color:var(--faint);font-size:12px;">'+esc(a.note)+'</span>':'')+'</div>'+
+    '<span class="'+PRI_PILL[a.priority]+'">'+PRI_LABEL[a.priority]+'</span>'+
+    '<button class="btn ghost sm" data-adel="'+i+'">Remove</button></div>'
+  ).join('');
+  $('assets').querySelectorAll('[data-adel]').forEach(b=>b.addEventListener('click',()=>{ plan.assets.splice(+b.dataset.adel,1); save(); renderAssets(); }));
+}
+$('a-add').onclick=()=>{
+  const name=$('a-name').value.trim(); if(!name){ $('a-name').focus(); return; }
+  plan.assets.push({ name, priority:$('a-pri').value, note:'' });
+  $('a-name').value=''; save(); renderAssets();
+};
+
+/* ---------- save ---------- */
+function collect(){
+  ['objective','capability','motivation','methods','success','assumptions'].forEach(f=>plan[f]=$(f).value.trim());
+  plan.tier=$('tier').value;
+  plan.focus=FOCUS.filter(([k])=>{ const c=$('focus').querySelector('[data-focus="'+k+'"]'); return c&&c.checked; }).map(([k])=>k);
+}
+function save(){ collect(); store.set(KEY, plan); }
+$('save').onclick=()=>{ save(); $('save-stat').textContent='Saved'; setTimeout(()=>$('save-stat').textContent='',1600); renderRemit(); };
+
+/* ---------- remit output ---------- */
+function remitText(){
+  collect();
+  const L=['RAMPART ENGAGEMENT REMIT','Compiled '+new Date().toISOString().slice(0,16).replace('T',' '),''];
+  L.push('OBJECTIVE'); L.push(plan.objective||'-'); L.push('');
+  L.push('MODELED ADVERSARY: '+(TIER_LABEL[plan.tier]||'-'));
+  L.push('  Capability: '+(plan.capability||'-'));
+  L.push('  Motivation: '+(plan.motivation||'-'));
+  L.push('  Likely methods: '+(plan.methods||'-')); L.push('');
+  L.push('PROTECTED ASSETS:');
+  if(plan.assets.length) plan.assets.forEach(a=>L.push('  ['+PRI_LABEL[a.priority]+'] '+a.name)); else L.push('  -');
+  L.push('');
+  L.push('PRIORITY FOCUS:');
+  const ff=FOCUS.filter(([k])=>plan.focus.indexOf(k)>=0).map(([,lab])=>lab);
+  L.push(ff.length?('  '+ff.join('; ')):'  -'); L.push('');
+  L.push('SUCCESS CRITERIA'); L.push(plan.success||'-'); L.push('');
+  L.push('ASSUMPTIONS AND CONSTRAINTS'); L.push(plan.assumptions||'-');
+  return L.join('\n');
+}
+function renderRemit(){
+  collect();
+  const assets = plan.assets.length
+    ? '<ul>'+plan.assets.map(a=>'<li><span class="'+PRI_PILL[a.priority]+'">'+PRI_LABEL[a.priority]+'</span> '+esc(a.name)+'</li>').join('')+'</ul>'
+    : '<p>-</p>';
+  const ff=FOCUS.filter(([k])=>plan.focus.indexOf(k)>=0).map(([,lab])=>esc(lab));
+  $('remit-doc').innerHTML =
+    '<div class="k" style="margin-top:0;">Rampart · Engagement Remit</div>'+
+    '<h2>'+(esc(plan.objective).slice(0,80)||'Engagement Remit')+'</h2>'+
+    '<div class="k">Objective</div><p>'+(esc(plan.objective)||'-')+'</p>'+
+    '<div class="k">Modeled adversary</div><p><strong style="color:var(--cream);">'+(TIER_LABEL[plan.tier]||'-')+'</strong></p>'+
+    '<p><em>Capability.</em> '+(esc(plan.capability)||'-')+'<br><em>Motivation.</em> '+(esc(plan.motivation)||'-')+'<br><em>Likely methods.</em> '+(esc(plan.methods)||'-')+'</p>'+
+    '<div class="k">Protected assets</div>'+assets+
+    '<div class="k">Priority focus</div><p>'+(ff.length?ff.join('; '):'-')+'</p>'+
+    '<div class="k">Success criteria</div><p>'+(esc(plan.success)||'-')+'</p>'+
+    '<div class="k">Assumptions and constraints</div><p>'+(esc(plan.assumptions)||'-')+'</p>';
+}
+$('print').onclick=()=>{ renderRemit(); window.print(); };
+$('copy').onclick=async()=>{ try{ await navigator.clipboard.writeText(remitText()); alert('Remit copied to clipboard.'); }catch(e){ alert('Copy failed. Use Export JSON.'); } };
+$('export').onclick=()=>{ save(); const b=new Blob([JSON.stringify(plan,null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='engagement-remit.json'; a.click(); URL.revokeObjectURL(a.href); };
+
+/* ---------- tabs ---------- */
+const tabs=document.querySelectorAll('.tab');
+tabs.forEach(t=>t.addEventListener('click',()=>{
+  tabs.forEach(x=>x.setAttribute('aria-selected',x===t?'true':'false'));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active',p.id===t.dataset.tab));
+  if(t.dataset.tab==='remit') renderRemit();
+}));
+
+loadForm(); renderRemit();
+</script>
+</body>
+</html>

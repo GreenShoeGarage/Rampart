@@ -37,6 +37,7 @@
   <div class="tabs" role="tablist">
     <button class="tab" role="tab" aria-selected="true"  data-tab="survey">Survey</button>
     <button class="tab" role="tab" aria-selected="false" data-tab="findings">Findings</button>
+    <button class="tab" role="tab" aria-selected="false" data-tab="plan">Floor plan</button>
   </div>
 
   <!-- SURVEY -->
@@ -63,6 +64,7 @@
         <label class="fld"><span>Recommendation</span><input id="fix" placeholder="Auto filled from the rubric, edit as needed"></label>
       </div>
       <label class="fld"><span>Note (optional)</span><input id="note" placeholder="Context, exposure, mitigating controls"></label>
+      <div class="row-actions" style="margin:-8px 0 6px;"><button class="btn ghost sm" id="dictate" type="button">Dictate note</button><span id="dictate-stat" style="align-self:center;font-family:var(--mono);font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:var(--mute);"></span></div>
       <label class="fld"><span>Photo (optional)</span>
         <input type="file" id="photo" accept="image/*" capture="environment">
       </label>
@@ -87,6 +89,24 @@
       </div>
       <div id="summary" style="margin:14px 0;"></div>
       <div id="list"></div>
+    </div>
+  </section>
+
+  <!-- PLAN -->
+  <section class="panel" id="plan">
+    <div class="card">
+      <h3>Floor plan</h3>
+      <p style="color:var(--mute);font-size:15px;">Upload a plan, then tap it to drop a pin for a finding. Pins are colored by severity, so the plan becomes a map of where the issues are.</p>
+      <label class="fld"><span>Plan image</span><input type="file" id="plan-img" accept="image/*"></label>
+      <div class="two-col">
+        <label class="fld"><span>Pin source</span><select id="pin-src"></select></label>
+        <label class="fld"><span>Custom label (if not a finding)</span><input id="pin-label" placeholder="e.g. Unlocked gate"></label>
+      </div>
+      <label class="fld" id="pin-sev-wrap" style="display:none;"><span>Severity</span>
+        <select id="pin-sev"><option value="crit">Critical</option><option value="weak">Weak</option><option value="strong">Strong</option><option value="info">Info</option></select>
+      </label>
+      <div id="plan-stage" style="position:relative;display:inline-block;max-width:100%;margin-top:8px;"></div>
+      <div id="pin-list" style="margin-top:14px;"></div>
     </div>
   </section>
 </main>
@@ -287,6 +307,92 @@ const FEATURES = {
       const item=[a.staffed&&a.staffed!=='Unknown'?a.staffed:null, a.barrier&&a.barrier!=='Unknown'?a.barrier:null].filter(Boolean).join(', ')||'Reception';
       return { item, ...rate(f,!known) };
     }
+  },
+  mantrap: {
+    label:'Turnstile / mantrap',
+    fields:[
+      ['ttype','Type',['Mantrap','Speed gate','Turnstile','Optical','None']],
+      ['anti','Anti-passback',['Anti-passback','None','Unknown']],
+      ['tail','Tailgate detection',['Detected','None','Unknown']],
+      ['cond','Condition',['Good','Degraded','Unknown']]
+    ],
+    score(a){
+      const f=[];
+      if(a.ttype==='None') f.push({w:2,f:'Add a controlled portal at this entrance'});
+      if(a.tail==='None') f.push({w:1,f:'Add tailgate detection to the portal'});
+      if(a.anti==='None') f.push({w:1,f:'Enable anti-passback'});
+      if(a.cond==='Degraded') f.push({w:1,f:'Service the portal to sound condition'});
+      const known=[a.ttype,a.anti,a.tail,a.cond].some(notDefault);
+      const item=[a.ttype&&a.ttype!=='Unknown'?a.ttype:null,a.tail==='None'?'no tailgate detection':null].filter(Boolean).join(', ')||'Portal';
+      return { item, ...rate(f,!known) };
+    }
+  },
+  serverroom: {
+    label:'Server room / IDF',
+    fields:[
+      ['access','Access control',['Card and audit','Card','Key','Unlocked','Unknown']],
+      ['sep','Separation',['Dedicated room','Shared space','Unknown']],
+      ['monitor','Monitoring',['Camera and alarm','Camera','None','Unknown']]
+    ],
+    score(a){
+      const f=[];
+      if(a.access==='Unlocked') f.push({w:2,f:'Lock and control access to the room'});
+      else if(a.access==='Key') f.push({w:1,f:'Move to audited card access'});
+      if(a.monitor==='None') f.push({w:1,f:'Add camera coverage and alarm to the room'});
+      if(a.sep==='Shared space') f.push({w:1,f:'Separate critical equipment into a dedicated controlled room'});
+      const known=[a.access,a.sep,a.monitor].some(notDefault);
+      const item=[a.access&&a.access!=='Unknown'?a.access+' access':null].filter(Boolean).join(', ')||'Server room';
+      return { item, ...rate(f,!known) };
+    }
+  },
+  skylight: {
+    label:'Skylight / roof',
+    fields:[
+      ['sky','Skylight',['Secured or barred','Standard','Open or accessible','None','Unknown']],
+      ['roof','Roof access',['Controlled','Ladder exposed','Unknown']],
+      ['sensor','Sensor',['Alarmed','None','Unknown']]
+    ],
+    score(a){
+      const f=[];
+      if(a.sky==='Open or accessible') f.push({w:2,f:'Secure or bar the accessible skylight'});
+      if(a.roof==='Ladder exposed') f.push({w:1,f:'Remove or lock the exposed roof ladder'});
+      if(a.sensor==='None') f.push({w:1,f:'Alarm the roof and skylight openings'});
+      const known=[a.sky,a.roof,a.sensor].some(notDefault);
+      const item=[a.sky&&a.sky!=='Unknown'?a.sky:null,a.roof==='Ladder exposed'?'exposed ladder':null].filter(Boolean).join(', ')||'Roof opening';
+      return { item, ...rate(f,!known) };
+    }
+  },
+  utility: {
+    label:'Utility access',
+    fields:[
+      ['encl','Enclosure',['Locked enclosure','Fenced','Open','Unknown']],
+      ['cover','Covers and panels',['Secured','Unsecured','Unknown']],
+      ['mark','Marking',['Unmarked','Marked utility','Unknown']]
+    ],
+    score(a){
+      const f=[];
+      if(a.encl==='Open') f.push({w:1,f:'Enclose and lock the utility access'});
+      if(a.cover==='Unsecured') f.push({w:1,f:'Secure covers and panels against tampering'});
+      const known=[a.encl,a.cover,a.mark].some(notDefault);
+      const item=[a.encl&&a.encl!=='Unknown'?a.encl:null].filter(Boolean).join(', ')||'Utility access';
+      return { item, ...rate(f,!known) };
+    }
+  },
+  knox: {
+    label:'Knox box / key vault',
+    fields:[
+      ['present','Box',['Present','None','Unknown']],
+      ['mount','Mounting',['Tamper resistant','Exposed','Unknown']],
+      ['audit','Contents',['Audited','Not audited','Unknown']]
+    ],
+    score(a){
+      const f=[];
+      if(a.mount==='Exposed') f.push({w:1,f:'Move the box to a tamper resistant mount'});
+      if(a.audit==='Not audited') f.push({w:1,f:'Audit and log the keys held in the box'});
+      const known=[a.present,a.mount,a.audit].some(notDefault);
+      const item=[a.present==='Present'?'Knox box':null,a.mount==='Exposed'?'exposed':null].filter(Boolean).join(', ')||'Key vault';
+      return { item, ...rate(f,!known) };
+    }
   }
 };
 
@@ -424,11 +530,76 @@ $('export').onclick=()=>{ const b=new Blob([JSON.stringify(finds,null,2)],{type:
 $('clear').onclick=()=>{ if(confirm('Clear all findings?')){ finds=[]; store.set(KEY,finds); render(); } };
 render();
 
+/* ---------- voice dictation ---------- */
+(function(){
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const btn=$('dictate'), stat=$('dictate-stat');
+  if(!SR){ btn.disabled=true; stat.textContent='Dictation not supported here'; return; }
+  let rec=null, on=false;
+  btn.onclick=()=>{
+    if(on){ if(rec) rec.stop(); return; }
+    rec=new SR(); rec.lang='en-US'; rec.interimResults=false; rec.continuous=false;
+    rec.onstart=()=>{ on=true; btn.textContent='Stop'; stat.textContent='Listening'; };
+    rec.onerror=()=>{ stat.textContent='Dictation error'; };
+    rec.onresult=e=>{ const txt=e.results[0][0].transcript; const cur=$('note').value; $('note').value=(cur?cur+' ':'')+txt; };
+    rec.onend=()=>{ on=false; btn.textContent='Dictate note'; stat.textContent=''; };
+    try{ rec.start(); }catch(e){}
+  };
+})();
+
+/* ---------- floor plan ---------- */
+const PKEY='rampart.sweep.plan';
+let plan=store.get(PKEY,{img:null,pins:[]});
+const planSrc=$('pin-src'), planStage=$('plan-stage');
+function refreshPinSrc(){
+  let opts='<option value="custom">Custom label</option>';
+  finds.forEach((f,i)=>{ opts+='<option value="'+i+'">'+esc((f.loc||'')+' - '+(f.item||''))+'</option>'; });
+  const prev=planSrc.value; planSrc.innerHTML=opts; if(prev) planSrc.value=prev; syncPinForm();
+}
+function syncPinForm(){ $('pin-sev-wrap').style.display = planSrc.value==='custom' ? 'block' : 'none'; }
+planSrc.addEventListener('change',syncPinForm);
+$('plan-img').addEventListener('change',e=>{
+  const file=e.target.files[0]; if(!file) return;
+  const img=new Image(), rd=new FileReader();
+  rd.onload=()=>{ img.onload=()=>{
+    const max=1400; let w=img.width,h=img.height;
+    if(w>h&&w>max){h=Math.round(h*max/w);w=max;} else if(h>max){w=Math.round(w*max/h);h=max;}
+    const cv=document.createElement('canvas'); cv.width=w; cv.height=h; cv.getContext('2d').drawImage(img,0,0,w,h);
+    plan.img=cv.toDataURL('image/jpeg',0.7); store.set(PKEY,plan); renderPlan();
+  }; img.src=rd.result; };
+  rd.readAsDataURL(file);
+});
+function renderPlan(){
+  if(!plan.img){ planStage.innerHTML='<div class="empty" style="display:block;">Upload a plan to begin.</div>'; $('pin-list').innerHTML=''; return; }
+  let h='<img id="plan-pic" src="'+plan.img+'" style="display:block;max-width:100%;height:auto;border:1px solid var(--line-2);border-radius:2px;cursor:crosshair;">';
+  plan.pins.forEach((p,i)=>{
+    const col={crit:'var(--crimson)',weak:'var(--amber)',strong:'var(--olive)',info:'var(--steel)'}[p.posture]||'var(--steel)';
+    h+='<span data-pin="'+i+'" title="'+esc(p.label)+'" style="position:absolute;left:'+p.x+'%;top:'+p.y+'%;transform:translate(-50%,-50%);width:16px;height:16px;border-radius:50%;background:'+col+';border:2px solid #15191c;box-shadow:0 0 0 1px '+col+';cursor:pointer;"></span>';
+  });
+  planStage.innerHTML=h;
+  $('plan-pic').addEventListener('click',ev=>{
+    const r=ev.target.getBoundingClientRect();
+    const x=((ev.clientX-r.left)/r.width*100).toFixed(1), y=((ev.clientY-r.top)/r.height*100).toFixed(1);
+    let label, posture;
+    if(planSrc.value==='custom'){ label=$('pin-label').value.trim()||'Pin'; posture=$('pin-sev').value; }
+    else { const f=finds[+planSrc.value]; if(!f){ return; } label=(f.loc||'')+' - '+(f.item||''); posture=f.posture; }
+    plan.pins.push({x:+x,y:+y,label,posture}); store.set(PKEY,plan); renderPlan();
+  });
+  planStage.querySelectorAll('[data-pin]').forEach(el=>el.addEventListener('click',ev=>{
+    ev.stopPropagation(); const i=+el.dataset.pin;
+    if(confirm('Remove this pin ('+plan.pins[i].label+')?')){ plan.pins.splice(i,1); store.set(PKEY,plan); renderPlan(); }
+  }));
+  $('pin-list').innerHTML = plan.pins.length
+    ? '<table class="tbl"><thead><tr><th>Pin</th><th>Severity</th></tr></thead><tbody>'+plan.pins.map(p=>'<tr><td>'+esc(p.label)+'</td><td><span class="'+POSTURE_PILL[p.posture]+'">'+POSTURE_LABEL[p.posture]+'</span></td></tr>').join('')+'</tbody></table>'
+    : '<div style="color:var(--faint);font-size:13px;">No pins yet. Tap the plan to drop one.</div>';
+}
+
 /* ---------- tabs ---------- */
 const tabs=document.querySelectorAll('.tab');
 tabs.forEach(t=>t.addEventListener('click',()=>{
   tabs.forEach(x=>x.setAttribute('aria-selected',x===t?'true':'false'));
   document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active',p.id===t.dataset.tab));
+  if(t.dataset.tab==='plan'){ refreshPinSrc(); renderPlan(); }
 }));
 </script>
 </body>

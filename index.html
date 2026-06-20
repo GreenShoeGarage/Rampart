@@ -9,7 +9,19 @@
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#15191c">
 <link rel="apple-touch-icon" href="icon-192.png">
+<style>
+  .cockpit { border-bottom:1px solid var(--line); padding:24px 0; }
+  .eng-bar { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .eng-bar select { width:auto; min-width:180px; }
+  .tiles { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin-top:18px; }
+  .tile { background:var(--plate); border:1px solid var(--line); border-radius:var(--rad); padding:13px 15px; }
+  .tile .tl { font-family:var(--mono); font-size:10px; letter-spacing:0.16em; text-transform:uppercase; color:var(--steel); }
+  .tile .tv { font-family:var(--display); font-weight:700; font-size:22px; color:var(--cream); margin-top:4px; }
+  .tile .tv.sm { font-size:15px; font-family:var(--body); font-weight:400; color:var(--mute); }
+  .data-actions { display:flex; gap:9px; flex-wrap:wrap; margin-top:18px; }
+</style>
 <script src="gate.js"></script>
+<script src="kit.js"></script>
 <script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
 </head>
 <body>
@@ -28,6 +40,30 @@
 </header>
 
 <main class="wrap">
+  <section class="cockpit">
+    <div class="eyebrow">Engagement</div>
+    <div class="eng-bar">
+      <select id="eng-sel" aria-label="Active engagement"></select>
+      <button class="btn sm" id="eng-new">New</button>
+      <button class="btn ghost sm" id="eng-rename">Rename</button>
+      <button class="btn ghost sm" id="eng-delete">Delete</button>
+    </div>
+    <div class="tiles">
+      <div class="tile"><div class="tl">Findings</div><div class="tv" id="t-findings">0</div><div id="t-sev" style="margin-top:6px;"></div></div>
+      <div class="tile"><div class="tl">Authorization</div><div class="tv sm" id="t-auth">Not set</div></div>
+      <div class="tile"><div class="tl">Readiness</div><div class="tv" id="t-ready">0 / 0</div></div>
+      <div class="tile"><div class="tl">Last activity</div><div class="tv sm" id="t-last">None yet</div></div>
+    </div>
+    <div class="data-actions">
+      <button class="btn ghost sm" id="d-backup">Backup engagement</button>
+      <button class="btn ghost sm" id="d-restore">Restore</button>
+      <button class="btn ghost sm" id="d-backupall">Backup all</button>
+      <button class="btn ghost sm" id="d-wipe">Wipe engagement</button>
+      <button class="btn ghost sm" id="d-wipedev" style="border-color:var(--crimson);color:var(--crimson);">Wipe device</button>
+      <input type="file" id="d-file" accept="application/json,.json" style="display:none;">
+    </div>
+  </section>
+
   <section class="section">
     <div class="eyebrow">Instruments</div>
     <div class="grid">
@@ -109,6 +145,55 @@
         <span class="status live">Live</span>
       </a>
 
+      <a class="compartment rise" href="exhibit.html">
+        <div class="idx">MOD 12</div>
+        <div class="cname">Exhibit</div>
+        <div class="cfn">Tamper-evident photo evidence. Timestamped, geotagged, and hash chained so an altered or missing image shows.</div>
+        <span class="status live">Live</span>
+      </a>
+
+      <a class="compartment rise" href="flux.html">
+        <div class="idx">MOD 13</div>
+        <div class="cname">Flux</div>
+        <div class="cfn">Magnetometer detector. Sweep for magnetic locks, door contacts, and concealed ferrous hardware behind a surface.</div>
+        <span class="status live">Live</span>
+      </a>
+
+      <a class="compartment rise" href="lumen.html">
+        <div class="idx">MOD 14</div>
+        <div class="cname">Lumen</div>
+        <div class="cfn">Lighting meter. Reads relative brightness and uniformity through the camera to find the dark pockets in site lighting.</div>
+        <span class="status live">Live</span>
+      </a>
+
+      <a class="compartment rise" href="gauge.html">
+        <div class="idx">MOD 15</div>
+        <div class="cname">Gauge</div>
+        <div class="cfn">Measure tool. Set a scale from a known object in a photo, then measure door gaps, fence heights, and standoff.</div>
+        <span class="status live">Live</span>
+      </a>
+
+      <a class="compartment rise" href="remit.html">
+        <div class="idx">MOD 16</div>
+        <div class="cname">Remit</div>
+        <div class="cfn">Scope and threat model. Objective, modeled adversary, protected assets, and success criteria, compiled to a one-page remit.</div>
+        <span class="status live">Live</span>
+      </a>
+
+      <a class="compartment rise" href="debrief.html">
+        <div class="idx">MOD 17</div>
+        <div class="cname">Debrief</div>
+        <div class="cfn">Hotwash and remediation tracker. Capture what held and what failed, then track every fix to done. Pulls findings from the kit.</div>
+        <span class="status live">Live</span>
+      </a>
+
+      <a class="compartment rise" href="lexicon.html">
+        <div class="idx">MOD 18</div>
+        <div class="cname">Lexicon</div>
+        <div class="cfn">Doctrine and glossary. The models and terms behind the kit, searchable and linked back to the module that uses each one.</div>
+        <span class="status live">Live</span>
+      </a>
+
     </div>
   </section>
 
@@ -124,6 +209,91 @@
   <span>Rampart · Field Instrument 036</span>
   <span>Make · Hack · Learn · Share · Repeat</span>
 </footer>
+
+<script>
+(function(){
+  var K = window.RampartKit;
+  if(!K) return;
+  K.ensureInit();
+  var $ = function(id){ return document.getElementById(id); };
+  var POSTURE = { crit:'pill crit', weak:'pill weak', strong:'pill strong', info:'pill info' };
+  var LABEL = { crit:'C', weak:'M', strong:'A', info:'I' };
+
+  function renderEngagements(){
+    var list = K.list(), active = K.activeId();
+    $('eng-sel').innerHTML = list.map(function(e){
+      return '<option value="'+e.id+'"'+(e.id===active?' selected':'')+'>'+e.name.replace(/[<>&]/g,'')+'</option>';
+    }).join('');
+    $('eng-delete').disabled = list.length<=1;
+  }
+  function renderStatus(){
+    var s = K.status();
+    $('t-findings').textContent = s.findingsTotal;
+    $('t-sev').innerHTML = ['crit','weak','strong','info'].map(function(p){
+      return '<span class="'+POSTURE[p]+'" style="margin-right:5px;">'+LABEL[p]+' '+s.findings[p]+'</span>';
+    }).join('');
+    $('t-auth').textContent = s.authorization ? (s.authName||'Set') : 'Not set';
+    $('t-ready').textContent = s.readiness.packed + ' / ' + s.readiness.total;
+    $('t-last').textContent = s.lastActivity ? s.lastActivity.replace('T',' ').slice(0,16) : 'None yet';
+  }
+  function refresh(){ renderEngagements(); renderStatus(); }
+
+  $('eng-sel').addEventListener('change', function(){ K.switchTo(this.value); refresh(); });
+  $('eng-new').addEventListener('click', function(){
+    var n = prompt('Name the new engagement:', 'Engagement '+(K.list().length+1));
+    if(n===null) return;
+    K.create(n); refresh();
+  });
+  $('eng-rename').addEventListener('click', function(){
+    var cur = K.activeName();
+    var n = prompt('Rename engagement:', cur||'');
+    if(n===null) return;
+    K.rename(K.activeId(), n); refresh();
+  });
+  $('eng-delete').addEventListener('click', function(){
+    if(K.list().length<=1){ alert('Keep at least one engagement.'); return; }
+    if(confirm('Delete the active engagement and all its data? This cannot be undone.')){ K.remove(K.activeId()); refresh(); }
+  });
+
+  function download(obj, name){
+    var b = new Blob([JSON.stringify(obj,null,2)], {type:'application/json'});
+    var a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = name; a.click(); URL.revokeObjectURL(a.href);
+  }
+  function safeName(s){ return (s||'engagement').replace(/[^a-z0-9]+/gi,'-').toLowerCase(); }
+
+  $('d-backup').addEventListener('click', function(){ download(K.exportEngagement(), 'rampart-'+safeName(K.activeName())+'.json'); });
+  $('d-backupall').addEventListener('click', function(){ download(K.exportAll(), 'rampart-kit-backup.json'); });
+
+  var restoreMode = 'engagement';
+  $('d-restore').addEventListener('click', function(){ restoreMode='engagement'; $('d-file').click(); });
+  $('d-file').addEventListener('change', function(e){
+    var file = e.target.files[0]; if(!file) return;
+    var rd = new FileReader();
+    rd.onload = function(){
+      try{
+        var obj = JSON.parse(rd.result);
+        if(obj.kind==='rampart-kit'){
+          if(confirm('This is a full kit backup. Restoring it replaces ALL engagements on this device. Continue?')){ K.importAll(obj); refresh(); alert('Kit restored.'); }
+        } else if(obj.kind==='rampart-engagement'){
+          K.importEngagement(obj); refresh(); alert('Engagement restored as a new entry.');
+        } else { alert('Not a Rampart backup file.'); }
+      }catch(err){ alert('Could not read that file.'); }
+    };
+    rd.readAsText(file); e.target.value='';
+  });
+
+  $('d-wipe').addEventListener('click', function(){
+    if(confirm('Wipe the active engagement\u2019s data? The engagement entry stays, but its findings, letter, and logs are cleared.')){ K.wipeEngagement(); refresh(); }
+  });
+  $('d-wipedev').addEventListener('click', function(){
+    if(confirm('WIPE DEVICE: erase every engagement and all Rampart data on this device, including the acceptable-use acknowledgement. For handing back a loaner. Continue?')){
+      K.wipeDevice(); location.reload();
+    }
+  });
+
+  refresh();
+})();
+</script>
 
 </body>
 </html>

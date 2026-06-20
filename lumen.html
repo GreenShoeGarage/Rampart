@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<!-- LUMEN (Field Instrument 036, Mod 14) - Rampart Field Kit. License: GPL-3.0 -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LUMEN - Rampart Field Kit</title>
+<meta name="description" content="Camera light meter for the lighting assessment. Reads relative luminance and uniformity, flags dark pockets, runs offline.">
+<link rel="stylesheet" href="theme.css">
+<style>
+  .lcam { width:100%; max-width:440px; display:block; background:#000; border:1px solid var(--line-2); border-radius:3px; aspect-ratio:4/3; object-fit:cover; }
+  .readout { text-align:center; padding:18px 0 6px; }
+  .readout .big { font-family:var(--display); font-weight:800; font-size:56px; line-height:1; color:var(--cream); }
+  .readout .unit { font-family:var(--mono); font-size:12px; letter-spacing:0.2em; text-transform:uppercase; color:var(--steel); margin-top:6px; }
+  .statgrid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-top:14px; }
+  .stat { background:var(--plate); border:1px solid var(--line); border-radius:var(--rad); padding:10px 12px; text-align:center; }
+  .stat .l { font-family:var(--mono); font-size:9.5px; letter-spacing:0.16em; text-transform:uppercase; color:var(--steel); }
+  .stat .v { font-family:var(--display); font-weight:700; font-size:20px; color:var(--cream); margin-top:3px; }
+  .verdict { text-align:center; font-family:var(--display); font-weight:700; letter-spacing:0.06em; text-transform:uppercase; font-size:16px; margin-top:14px; padding:8px; border-radius:3px; }
+  .verdict.even { color:var(--olive); border:1px solid var(--olive); background:rgba(132,149,95,0.10); }
+  .verdict.some { color:var(--amber); border:1px solid var(--amber); background:rgba(199,158,80,0.10); }
+  .verdict.uneven { color:var(--crimson); border:1px solid var(--crimson); background:rgba(187,69,58,0.12); }
+  .reflist { color:var(--mute); font-size:14.5px; line-height:1.8; }
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#15191c">
+<link rel="apple-touch-icon" href="icon-192.png">
+<script src="gate.js"></script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</head>
+<body>
+<div class="band"><span>Authorized assessment use only</span></div>
+
+<header class="masthead">
+  <div class="wrap">
+    <div class="crumbs"><a href="index.html">Rampart</a><span class="sep">/</span><span>Mod 14</span><span class="sep">/</span><span>Lumen</span></div>
+    <div class="kit-title"><span class="name">Lumen</span><span class="no">036 · 14</span></div>
+    <div class="kit-sub">Lighting Meter</div>
+    <p class="kit-lede">Read site lighting through the camera. Lumen reports relative brightness and, more usefully, the uniformity across a scene, so the dark pockets that defeat a lit perimeter show up. It feeds the lighting line of the Sweep assessment.</p>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" aria-selected="true"  data-tab="meter">Meter</button>
+    <button class="tab" role="tab" aria-selected="false" data-tab="readings">Readings</button>
+    <button class="tab" role="tab" aria-selected="false" data-tab="reference">Reference</button>
+  </div>
+
+  <!-- METER -->
+  <section class="panel active" id="meter">
+    <div class="card">
+      <video id="cam" class="lcam" playsinline muted></video>
+      <div class="readout">
+        <div class="big" id="level">--</div>
+        <div class="unit" id="unit">relative level</div>
+      </div>
+      <div class="statgrid">
+        <div class="stat"><div class="l">Darkest cell</div><div class="v" id="dmin">--</div></div>
+        <div class="stat"><div class="l">Average</div><div class="v" id="davg">--</div></div>
+        <div class="stat"><div class="l">Brightest cell</div><div class="v" id="dmax">--</div></div>
+      </div>
+      <div class="verdict" id="verdict" style="display:none;"></div>
+      <div class="statline" id="status" style="margin-top:14px;text-align:center;"></div>
+    </div>
+    <div class="card">
+      <div class="row-actions"><button class="btn" id="start">Start meter</button></div>
+      <h3 style="margin-top:18px;">Log this spot</h3>
+      <div class="two-col">
+        <label class="fld"><span>Location</span><input id="m-loc" placeholder="e.g. North parking row"></label>
+        <label class="fld"><span>Note</span><input id="m-note" placeholder="e.g. Dark gap between poles"></label>
+      </div>
+      <div class="row-actions"><button class="btn" id="mark" disabled>Log reading</button></div>
+    </div>
+  </section>
+
+  <!-- READINGS -->
+  <section class="panel" id="readings">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+        <h3 style="margin:0;">Logged readings</h3>
+        <div class="row-actions" style="margin:0;">
+          <button class="btn ghost sm" id="export">Export JSON</button>
+          <button class="btn ghost sm" id="clear">Clear</button>
+        </div>
+      </div>
+      <div id="read-body" style="margin-top:14px;"></div>
+    </div>
+  </section>
+
+  <!-- REFERENCE -->
+  <section class="panel" id="reference">
+    <div class="card">
+      <h3>Reading the meter</h3>
+      <div class="reflist">
+        The level is a relative brightness index, not calibrated lux. Phone cameras auto-expose, so use Lumen to compare spots and to judge evenness, not to certify an absolute light level.<br>
+        Uniformity is the honest signal. Auto-exposure shifts the whole frame together, so the spread between the darkest and brightest cell still tells you where the dark pockets are.<br>
+        Hold the camera level and face the area the way an approaching person would see it.
+      </div>
+    </div>
+    <div class="card">
+      <h3>What good lighting looks like</h3>
+      <div class="reflist">
+        Even coverage matters more than raw brightness. A bright pool next to a black gap is worse than a moderate, uniform wash.<br>
+        Watch for dark pockets at approaches, entries, and along the perimeter line, and for glare that blinds rather than reveals.<br>
+        Light and natural surveillance work together: lighting only helps if someone or a camera can see the lit space.<br>
+        Record the weak spots as findings in Sweep and capture the proof in Exhibit.
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="wrap foot">
+  <span><a href="index.html" style="color:var(--mute);">&larr; Back to kit</a></span>
+  <span>Lumen · Mod 14</span>
+</footer>
+
+<script>
+const $ = id => document.getElementById(id);
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+const store = {
+  get(k,d){ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):d; }catch(e){ return d; } },
+  set(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){} }
+};
+const KEY='rampart.lumen.log';
+let reads = store.get(KEY, []);
+
+const cam=$('cam');
+let stream=null, raf=null, running=false;
+let cv=null, ctx=null;
+const GX=6, GY=4;
+let lastAvg=0, lastMin=0, lastMax=0, lastLux=null;
+
+/* ambient light sensor, where present, for a true lux reading */
+let als=null;
+function startALS(){
+  if(!('AmbientLightSensor' in window)) return;
+  try{ als=new AmbientLightSensor({frequency:2}); als.addEventListener('reading',()=>{ lastLux=als.illuminance; }); als.addEventListener('error',()=>{ als=null; }); als.start(); }catch(e){ als=null; }
+}
+
+function loop(){
+  if(!running) return;
+  cv.width=120; cv.height=90;
+  try{ ctx.drawImage(cam,0,0,120,90); }catch(e){ raf=requestAnimationFrame(loop); return; }
+  const d=ctx.getImageData(0,0,120,90).data;
+  const cw=Math.floor(120/GX), ch=Math.floor(90/GY);
+  const cells=[];
+  for(let gy=0; gy<GY; gy++) for(let gx=0; gx<GX; gx++){
+    let sum=0, n=0;
+    for(let y=gy*ch; y<(gy+1)*ch; y++) for(let x=gx*cw; x<(gx+1)*cw; x++){
+      const i=(y*120+x)*4; sum += 0.2126*d[i]+0.7152*d[i+1]+0.0722*d[i+2]; n++;
+    }
+    cells.push(sum/n);
+  }
+  const avg=cells.reduce((a,b)=>a+b,0)/cells.length;
+  const min=Math.min.apply(null,cells), max=Math.max.apply(null,cells);
+  lastAvg=avg; lastMin=min; lastMax=max;
+  const idx=Math.round(avg/255*100);
+  $('level').textContent = lastLux!=null ? Math.round(lastLux) : idx;
+  $('unit').textContent = lastLux!=null ? 'lux, ambient sensor' : 'relative level, 0 to 100';
+  $('dmin').textContent=Math.round(min/255*100);
+  $('davg').textContent=idx;
+  $('dmax').textContent=Math.round(max/255*100);
+  // uniformity: darkest relative to average
+  const u = avg>0 ? min/avg : 0;
+  const v=$('verdict'); v.style.display='block';
+  if(u>=0.7){ v.className='verdict even'; v.textContent='Even coverage'; }
+  else if(u>=0.4){ v.className='verdict some'; v.textContent='Some dark pockets'; }
+  else { v.className='verdict uneven'; v.textContent='Very uneven, dark gaps'; }
+  raf=requestAnimationFrame(loop);
+}
+
+$('start').onclick=async()=>{
+  if(running){
+    running=false; if(raf) cancelAnimationFrame(raf); raf=null;
+    if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; }
+    if(als){ try{ als.stop(); }catch(e){} als=null; lastLux=null; }
+    cam.style.display='none'; $('start').textContent='Start meter'; $('mark').disabled=true; $('status').textContent='Stopped.';
+    return;
+  }
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({ video:{ facingMode:'environment' } });
+    cam.srcObject=stream; await cam.play(); cam.style.display='block';
+    cv=document.createElement('canvas'); ctx=cv.getContext('2d',{willReadFrequently:true});
+    running=true; startALS(); loop();
+    $('start').textContent='Stop meter'; $('mark').disabled=false; $('status').textContent='Live. Aim at the area to assess.';
+  }catch(e){ $('status').textContent='Camera unavailable or permission denied.'; }
+};
+
+$('mark').onclick=()=>{
+  if(!running) return;
+  const idx=Math.round(lastAvg/255*100);
+  const u = lastAvg>0 ? Math.round(lastMin/lastAvg*100) : 0;
+  reads.push({ time:new Date().toISOString(), loc:$('m-loc').value.trim(), note:$('m-note').value.trim(),
+               level:idx, darkest:Math.round(lastMin/255*100), brightest:Math.round(lastMax/255*100),
+               uniformity:u, lux:(lastLux!=null?Math.round(lastLux):null) });
+  store.set(KEY, reads);
+  $('m-loc').value=''; $('m-note').value='';
+  $('status').textContent='Logged reading, uniformity '+u+' percent.';
+  renderReads();
+};
+function renderReads(){
+  if(!reads.length){ $('read-body').innerHTML='<div class="empty">No readings logged yet.</div>'; return; }
+  let h='<table class="tbl"><thead><tr><th>Location</th><th class="mono">Level</th><th class="mono">Dark</th><th class="mono">Bright</th><th class="mono">Uniform</th><th>Note</th><th></th></tr></thead><tbody>';
+  reads.slice().reverse().forEach((r,ri)=>{
+    const i=reads.length-1-ri;
+    h+='<tr><td>'+esc(r.loc||'-')+'</td><td class="mono">'+esc(r.lux!=null?r.lux+'lx':r.level)+'</td><td class="mono">'+esc(r.darkest)+'</td><td class="mono">'+esc(r.brightest)+'</td><td class="mono">'+esc(r.uniformity)+'%</td><td style="color:var(--mute);">'+esc(r.note||'')+'</td><td><button class="btn ghost sm" data-del="'+i+'">Remove</button></td></tr>';
+  });
+  $('read-body').innerHTML=h+'</tbody></table>';
+  $('read-body').querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click',()=>{ reads.splice(+b.dataset.del,1); store.set(KEY,reads); renderReads(); }));
+}
+$('clear').onclick=()=>{ if(confirm('Clear all logged readings?')){ reads=[]; store.set(KEY,reads); renderReads(); } };
+$('export').onclick=()=>{ const b=new Blob([JSON.stringify(reads,null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='lumen-readings.json'; a.click(); URL.revokeObjectURL(a.href); };
+
+/* ---------- tabs ---------- */
+const tabs=document.querySelectorAll('.tab');
+tabs.forEach(t=>t.addEventListener('click',()=>{
+  tabs.forEach(x=>x.setAttribute('aria-selected',x===t?'true':'false'));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active',p.id===t.dataset.tab));
+}));
+
+renderReads();
+</script>
+</body>
+</html>

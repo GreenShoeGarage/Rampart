@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<!-- DEBRIEF (Field Instrument 036, Mod 17) - Rampart Field Kit. License: GPL-3.0 -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DEBRIEF - Rampart Field Kit</title>
+<meta name="description" content="Post-engagement hotwash and remediation tracker. Closes the loop after the report.">
+<link rel="stylesheet" href="theme.css">
+<style>
+  @media print {
+    .band,.masthead,.tabs,.foot,#hotwash,#remediation,.no-print { display:none !important; }
+    body { background:#fff; color:#111; }
+    .db-doc, .db-doc .k, .db-doc h2 { color:#111; }
+  }
+  .progress { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin:14px 0; }
+  .pcell { background:var(--plate); border:1px solid var(--line); border-radius:var(--rad); padding:11px; text-align:center; }
+  .pcell .l { font-family:var(--mono); font-size:9.5px; letter-spacing:0.16em; text-transform:uppercase; color:var(--steel); }
+  .pcell .v { font-family:var(--display); font-weight:700; font-size:22px; margin-top:3px; }
+  .db-doc { max-width:74ch; }
+  .db-doc h2 { font-family:var(--display); font-weight:800; margin:0 0 4px; }
+  .db-doc .k { font-family:var(--mono); font-size:10.5px; letter-spacing:0.14em; text-transform:uppercase; color:var(--steel); margin-top:18px; }
+  .db-doc p,.db-doc li { color:var(--mute); font-size:14.5px; line-height:1.7; }
+  .it-grid input, .it-grid select { margin:0; }
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#15191c">
+<link rel="apple-touch-icon" href="icon-192.png">
+<script src="gate.js"></script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</head>
+<body>
+<div class="band"><span>Authorized assessment use only</span></div>
+
+<header class="masthead">
+  <div class="wrap">
+    <div class="crumbs"><a href="index.html">Rampart</a><span class="sep">/</span><span>Mod 17</span><span class="sep">/</span><span>Debrief</span></div>
+    <div class="kit-title"><span class="name">Debrief</span><span class="no">036 · 17</span></div>
+    <div class="kit-sub">Hotwash and Remediation</div>
+    <p class="kit-lede">Close the loop after the report. Capture what held, what failed, and what was learned, then track each fix to done. Pull the findings straight from the kit so nothing falls off the list.</p>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" aria-selected="true"  data-tab="hotwash">Hotwash</button>
+    <button class="tab" role="tab" aria-selected="false" data-tab="remediation">Remediation</button>
+    <button class="tab" role="tab" aria-selected="false" data-tab="debrief">Debrief</button>
+  </div>
+
+  <!-- HOTWASH -->
+  <section class="panel active" id="hotwash">
+    <div class="card">
+      <div class="two-col">
+        <label class="fld"><span>Engagement</span><input id="eng" placeholder="Name or client"></label>
+        <label class="fld"><span>Debrief date</span><input id="date" type="date"></label>
+      </div>
+      <label class="fld"><span>What was tested</span><textarea id="tested" placeholder="Scope actually exercised on the day"></textarea></label>
+      <label class="fld"><span>What held</span><textarea id="held" placeholder="Controls that worked and stopped the modeled adversary"></textarea></label>
+      <label class="fld"><span>What failed</span><textarea id="failed" placeholder="Gaps that let the adversary through"></textarea></label>
+      <label class="fld"><span>Surprises</span><textarea id="surprises" placeholder="Anything unexpected, good or bad"></textarea></label>
+      <label class="fld"><span>Lessons and next time</span><textarea id="lessons" placeholder="What to do differently, for the client and for the team"></textarea></label>
+      <div class="row-actions"><button class="btn" id="save">Save hotwash</button><span class="statline" id="save-stat" style="align-self:center;"></span></div>
+    </div>
+  </section>
+
+  <!-- REMEDIATION -->
+  <section class="panel" id="remediation">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+        <h3 style="margin:0;">Remediation tracker</h3>
+        <div class="row-actions" style="margin:0;">
+          <button class="btn sm" id="pull">Pull findings from kit</button>
+          <button class="btn ghost sm" id="csv">Export CSV</button>
+          <button class="btn ghost sm" id="clear">Clear</button>
+        </div>
+      </div>
+      <div class="progress">
+        <div class="pcell"><div class="l">Open</div><div class="v" id="p-open" style="color:var(--crimson);">0</div></div>
+        <div class="pcell"><div class="l">In progress</div><div class="v" id="p-prog" style="color:var(--amber);">0</div></div>
+        <div class="pcell"><div class="l">Closed</div><div class="v" id="p-closed" style="color:var(--olive);">0</div></div>
+      </div>
+      <div id="items"></div>
+      <h3 style="margin-top:20px;">Add an item</h3>
+      <div class="two-col">
+        <label class="fld"><span>Item</span><input id="i-item" placeholder="What needs fixing"></label>
+        <label class="fld"><span>Location</span><input id="i-loc" placeholder="Where"></label>
+      </div>
+      <div class="row-actions"><button class="btn" id="i-add">Add item</button></div>
+    </div>
+  </section>
+
+  <!-- DEBRIEF -->
+  <section class="panel" id="debrief">
+    <div class="card">
+      <div class="row-actions no-print" style="margin-bottom:16px;">
+        <button class="btn" id="print">Print / Save PDF</button>
+        <button class="btn ghost sm" id="copy">Copy text</button>
+        <button class="btn ghost sm" id="export">Export JSON</button>
+      </div>
+      <div class="db-doc" id="db-doc"></div>
+    </div>
+  </section>
+</main>
+
+<footer class="wrap foot">
+  <span><a href="index.html" style="color:var(--mute);">&larr; Back to kit</a></span>
+  <span>Debrief · Mod 17</span>
+</footer>
+
+<script>
+const $ = id => document.getElementById(id);
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+const store = {
+  get(k,d){ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):d; }catch(e){ return d; } },
+  set(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){} }
+};
+const NKEY='rampart.debrief.notes';
+const IKEY='rampart.debrief.items';
+const NFIELDS=['eng','date','tested','held','failed','surprises','lessons'];
+let notes = store.get(NKEY, {});
+let items = store.get(IKEY, []);
+
+/* ---------- hotwash ---------- */
+function loadNotes(){ NFIELDS.forEach(f=>{ if($(f)) $(f).value=notes[f]||''; }); }
+function saveNotes(){ NFIELDS.forEach(f=>notes[f]=$(f).value.trim()); store.set(NKEY, notes); }
+$('save').onclick=()=>{ saveNotes(); $('save-stat').textContent='Saved'; setTimeout(()=>$('save-stat').textContent='',1600); renderDoc(); };
+
+/* ---------- remediation ---------- */
+const STATUS=['open','progress','closed'];
+const STATUS_LABEL={open:'Open',progress:'In progress',closed:'Closed'};
+const PRI_PILL={crit:'pill crit',weak:'pill weak',strong:'pill strong',info:'pill info'};
+const PRI_LABEL={crit:'Critical',weak:'Medium',strong:'Adequate',info:'Info'};
+
+function srcOf(f){
+  if(f.band) return 'Aether'; if(f.attrs) return 'Sweep'; if(f.wire||f.tech) return 'Credential';
+  if(f.type==='Lock') return 'Tumbler';
+  if(f.type && /approach|exposure|footprint/i.test(f.type)) return 'Footprint';
+  if(f.type && /door|perimeter|barrier|camera|gate|window|lighting|alarm|reception|mantrap|server|skylight|utility|knox/i.test(f.type)) return 'Sweep';
+  return 'Finding';
+}
+$('pull').onclick=()=>{
+  const keys=['rampart.credential.findings','rampart.sweep.findings','rampart.aether.findings','rampart.footprint.findings','rampart.tumbler.findings'];
+  let pulled=0;
+  keys.forEach(k=>{ const arr=store.get(k,[]); if(!Array.isArray(arr)) return;
+    arr.forEach(f=>{
+      if(f.posture!=='crit' && f.posture!=='weak') return;
+      const item=(f.item||f.type||'Finding'); const loc=f.loc||'';
+      if(items.some(x=>x.item===item && x.loc===loc)) return; // dedup
+      items.push({ item, loc, source:srcOf(f), priority:f.posture, fix:f.fix||'', owner:'', due:'', status:'open' });
+      pulled++;
+    });
+  });
+  store.set(IKEY, items); renderItems();
+  $('save-stat'); // noop
+  alert(pulled ? ('Pulled '+pulled+' open item'+(pulled===1?'':'s')+' from the kit.') : 'No new critical or medium findings to pull.');
+};
+$('i-add').onclick=()=>{
+  const item=$('i-item').value.trim(); if(!item){ $('i-item').focus(); return; }
+  items.push({ item, loc:$('i-loc').value.trim(), source:'Manual', priority:'weak', fix:'', owner:'', due:'', status:'open' });
+  $('i-item').value=''; $('i-loc').value=''; store.set(IKEY, items); renderItems();
+};
+function counts(){ const c={open:0,progress:0,closed:0}; items.forEach(i=>{ if(c[i.status]!=null) c[i.status]++; }); return c; }
+function renderItems(){
+  const c=counts(); $('p-open').textContent=c.open; $('p-prog').textContent=c.progress; $('p-closed').textContent=c.closed;
+  if(!items.length){ $('items').innerHTML='<div class="empty">No remediation items. Pull from the kit or add one.</div>'; renderDoc(); return; }
+  let h='<table class="tbl"><thead><tr><th>Item</th><th>Pri</th><th>Owner</th><th>Due</th><th>Status</th><th></th></tr></thead><tbody>';
+  items.forEach((it,i)=>{
+    h+='<tr><td>'+esc(it.item)+(it.loc?'<br><span style="color:var(--faint);font-size:12px;">'+esc(it.loc)+'</span>':'')+'<br><span style="color:var(--steel);font-family:var(--mono);font-size:10px;">'+esc(it.source)+'</span></td>'+
+       '<td><span class="'+(PRI_PILL[it.priority]||'pill info')+'">'+(PRI_LABEL[it.priority]||'-')+'</span></td>'+
+       '<td><input data-owner="'+i+'" value="'+esc(it.owner)+'" placeholder="Owner" style="min-width:90px;"></td>'+
+       '<td><input data-due="'+i+'" type="date" value="'+esc(it.due)+'"></td>'+
+       '<td><select data-status="'+i+'">'+STATUS.map(s=>'<option value="'+s+'"'+(it.status===s?' selected':'')+'>'+STATUS_LABEL[s]+'</option>').join('')+'</select></td>'+
+       '<td><button class="btn ghost sm" data-idel="'+i+'">Remove</button></td></tr>';
+  });
+  $('items').innerHTML=h+'</tbody></table>';
+  $('items').querySelectorAll('[data-owner]').forEach(el=>el.addEventListener('input',()=>{ items[+el.dataset.owner].owner=el.value; store.set(IKEY,items); }));
+  $('items').querySelectorAll('[data-due]').forEach(el=>el.addEventListener('change',()=>{ items[+el.dataset.due].due=el.value; store.set(IKEY,items); }));
+  $('items').querySelectorAll('[data-status]').forEach(el=>el.addEventListener('change',()=>{ items[+el.dataset.status].status=el.value; store.set(IKEY,items); renderItems(); }));
+  $('items').querySelectorAll('[data-idel]').forEach(el=>el.addEventListener('click',()=>{ items.splice(+el.dataset.idel,1); store.set(IKEY,items); renderItems(); }));
+  renderDoc();
+}
+$('clear').onclick=()=>{ if(confirm('Clear all remediation items?')){ items=[]; store.set(IKEY,items); renderItems(); } };
+function csvCell(s){ s=String(s==null?'':s); return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; }
+$('csv').onclick=()=>{
+  if(!items.length){ alert('No items to export.'); return; }
+  const head=['Item','Location','Source','Priority','Owner','Due','Status','Recommendation'];
+  const rows=items.map(it=>[it.item,it.loc,it.source,PRI_LABEL[it.priority]||'',it.owner,it.due,STATUS_LABEL[it.status],it.fix].map(csvCell).join(','));
+  const b=new Blob([head.join(',')+'\n'+rows.join('\n')],{type:'text/csv'}); const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='debrief-remediation.csv'; a.click(); URL.revokeObjectURL(a.href);
+};
+
+/* ---------- debrief doc ---------- */
+function debriefText(){
+  saveNotes();
+  const c=counts();
+  const L=['RAMPART ENGAGEMENT DEBRIEF',(notes.eng||'-'),(notes.date||''),''];
+  L.push('WHAT WAS TESTED'); L.push(notes.tested||'-'); L.push('');
+  L.push('WHAT HELD'); L.push(notes.held||'-'); L.push('');
+  L.push('WHAT FAILED'); L.push(notes.failed||'-'); L.push('');
+  L.push('SURPRISES'); L.push(notes.surprises||'-'); L.push('');
+  L.push('LESSONS'); L.push(notes.lessons||'-'); L.push('');
+  L.push('REMEDIATION ('+c.open+' open, '+c.progress+' in progress, '+c.closed+' closed):');
+  items.forEach(it=>L.push('  ['+STATUS_LABEL[it.status]+'] '+it.item+(it.loc?' ('+it.loc+')':'')+(it.owner?' - '+it.owner:'')+(it.due?' due '+it.due:'')));
+  return L.join('\n');
+}
+function renderDoc(){
+  const c=counts();
+  const rows = items.length ? '<ul>'+items.map(it=>'<li><strong style="color:var(--cream);">['+STATUS_LABEL[it.status]+']</strong> '+esc(it.item)+(it.owner?' &middot; '+esc(it.owner):'')+(it.due?' &middot; due '+esc(it.due):'')+'</li>').join('')+'</ul>' : '<p>-</p>';
+  $('db-doc').innerHTML =
+    '<div class="k" style="margin-top:0;">Rampart · Engagement Debrief</div>'+
+    '<h2>'+(esc(notes.eng)||'Debrief')+'</h2>'+
+    (notes.date?'<p style="font-family:var(--mono);font-size:12px;">'+esc(notes.date)+'</p>':'')+
+    '<div class="k">What was tested</div><p>'+(esc(notes.tested)||'-')+'</p>'+
+    '<div class="k">What held</div><p>'+(esc(notes.held)||'-')+'</p>'+
+    '<div class="k">What failed</div><p>'+(esc(notes.failed)||'-')+'</p>'+
+    '<div class="k">Surprises</div><p>'+(esc(notes.surprises)||'-')+'</p>'+
+    '<div class="k">Lessons</div><p>'+(esc(notes.lessons)||'-')+'</p>'+
+    '<div class="k">Remediation ('+c.open+' open, '+c.progress+' in progress, '+c.closed+' closed)</div>'+rows;
+}
+$('print').onclick=()=>{ renderDoc(); window.print(); };
+$('copy').onclick=async()=>{ try{ await navigator.clipboard.writeText(debriefText()); alert('Debrief copied to clipboard.'); }catch(e){ alert('Copy failed. Use Export JSON.'); } };
+$('export').onclick=()=>{ saveNotes(); const b=new Blob([JSON.stringify({notes,items},null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='engagement-debrief.json'; a.click(); URL.revokeObjectURL(a.href); };
+
+/* ---------- tabs ---------- */
+const tabs=document.querySelectorAll('.tab');
+tabs.forEach(t=>t.addEventListener('click',()=>{
+  tabs.forEach(x=>x.setAttribute('aria-selected',x===t?'true':'false'));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active',p.id===t.dataset.tab));
+  if(t.dataset.tab==='debrief') renderDoc();
+}));
+
+loadNotes(); renderItems();
+</script>
+</body>
+</html>

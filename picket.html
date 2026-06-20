@@ -103,6 +103,8 @@
       </div>
 
       <label class="switch" style="margin-top:18px;border-top:1px solid var(--line);padding-top:16px;"><input type="checkbox" id="s-alarm" checked> Audible alarm on trip</label>
+      <label class="switch" style="margin-top:12px;"><input type="checkbox" id="s-snap" checked> Capture camera snapshot on trip</label>
+      <label class="switch" style="margin-top:12px;"><input type="checkbox" id="s-cal" checked> Auto-calibrate to ambient on arm</label>
     </div>
 
     <div class="card">
@@ -138,19 +140,34 @@ let stream = null, audioStream = null;
 let audioCtx, analyser, freqData;
 let video, mcanvas, mctx, prevFrame = null;
 let lastVib = null, vibAvg = 0;
-let raf = null, cooldownUntil = 0, armTimer = null;
+let raf = null, cooldownUntil = 0, armTimer = null, calTimer = null, calInterval = null;
 
 const level = { motion:0, vib:0, sound:0 };
+const baseline = { motion:0, vib:0, sound:0 };
+let calibrating = false;
+let snapCanvas = null;
 
 /* ---------- log render ---------- */
 function renderLog(){
   const el = $('log');
   if(!log.length){ el.innerHTML='<div class="empty">No trips recorded.</div>'; return; }
-  let h='<table class="tbl"><thead><tr><th class="mono">Time</th><th>Sensor</th><th class="mono">Level</th></tr></thead><tbody>';
+  let h='<table class="tbl"><thead><tr><th class="mono">Time</th><th>Sensor</th><th class="mono">Level</th><th>Snapshot</th></tr></thead><tbody>';
   log.slice().reverse().forEach(e=>{
-    h+='<tr><td class="mono">'+esc(e.t)+'</td><td>'+esc(e.s)+'</td><td class="mono">'+esc(e.l)+'</td></tr>';
+    h+='<tr><td class="mono">'+esc(e.t)+'</td><td>'+esc(e.s)+'</td><td class="mono">'+esc(e.l)+'</td>'+
+       '<td>'+(e.img?'<img src="'+e.img+'" style="max-width:120px;border:1px solid var(--line);border-radius:2px;">':'<span style="color:var(--faint);">-</span>')+'</td></tr>';
   });
   el.innerHTML=h+'</tbody></table>';
+}
+function captureSnapshot(){
+  if(!$('s-snap').checked || !video || video.readyState<2) return null;
+  try{
+    const vw=video.videoWidth||320, vh=video.videoHeight||240, max=480;
+    let w=vw, hh=vh; if(w>hh && w>max){ hh=Math.round(hh*max/w); w=max; } else if(hh>max){ w=Math.round(w*max/hh); hh=max; }
+    if(!snapCanvas) snapCanvas=document.createElement('canvas');
+    snapCanvas.width=w; snapCanvas.height=hh;
+    snapCanvas.getContext('2d').drawImage(video,0,0,w,hh);
+    return snapCanvas.toDataURL('image/jpeg',0.5);
+  }catch(e){ return null; }
 }
 $('export').onclick=()=>{ const b=new Blob([JSON.stringify(log,null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='picket-log.json'; a.click(); URL.revokeObjectURL(a.href); };
 $('clear').onclick=()=>{ if(confirm('Clear the trip log?')){ log=[]; store.set(KEY,log); renderLog(); } };
@@ -175,7 +192,7 @@ function flash(){ const f=$('flash'); f.classList.remove('go'); void f.offsetWid
 function trip(sensor, lvl){
   if(state!=='armed' || Date.now()<cooldownUntil) return;
   state='tripped'; cooldownUntil = Date.now()+3000;
-  const e = { t:new Date().toLocaleTimeString(), s:sensor, l:lvl };
+  const e = { t:new Date().toLocaleTimeString(), s:sensor, l:lvl, img: captureSnapshot() };
   log.push(e); store.set(KEY,log); renderLog();
   beep(); flash();
   $('arm').classList.add('tripped'); $('arm').textContent='Tripped';
@@ -238,7 +255,8 @@ function loop(){
 }
 function checkSensor(name, sensInput, meterEl){
   const on = $('s-'+(name==='vib'?'vib':name)).checked;
-  const v = on ? level[name] : 0;
+  const raw = on ? level[name] : 0;
+  const v = $('s-cal').checked ? Math.max(0, raw - baseline[name]) : raw;
   const bar = meterEl.querySelector('i'); bar.style.width = v+'%';
   // threshold: higher sensitivity -> lower trip point
   const thresh = 100 - (+sensInput.value);
@@ -260,22 +278,39 @@ async function arm(){
     teardown(); return;
   }
   if(!raf) loop();
-  const d = +$('delay').value;
   state='arming'; $('arm').textContent='Cancel'; $('arm').classList.add('armed');
-  if(d>0){
-    let left=d; $('stat').textContent='Arming in '+left+' s';
-    armTimer=setInterval(()=>{ left--; if(left<=0){ clearInterval(armTimer); goArmed(); } else $('stat').textContent='Arming in '+left+' s'; },1000);
-  } else goArmed();
+  baseline.motion=0; baseline.vib=0; baseline.sound=0;
+  const proceed = () => {
+    if(state!=='arming') return;
+    const d = +$('delay').value;
+    if(d>0){
+      let left=d; $('stat').textContent='Arming in '+left+' s';
+      armTimer=setInterval(()=>{ left--; if(left<=0){ clearInterval(armTimer); goArmed(); } else $('stat').textContent='Arming in '+left+' s'; },1000);
+    } else goArmed();
+  };
+  if($('s-cal').checked){
+    $('stat').textContent='Calibrating to ambient';
+    const samples={motion:[],vib:[],sound:[]};
+    calInterval=setInterval(()=>{ ['motion','vib','sound'].forEach(k=>samples[k].push(level[k])); }, 100);
+    calTimer=setTimeout(()=>{
+      clearInterval(calInterval); calInterval=null;
+      ['motion','vib','sound'].forEach(k=>{ const a=samples[k]; baseline[k]= a.length ? (a.reduce((x,y)=>x+y,0)/a.length) : 0; });
+      proceed();
+    }, 1500);
+  } else proceed();
 }
 function goArmed(){ state='armed'; cooldownUntil=Date.now()+800; $('arm').textContent='Disarm'; $('stat').textContent='Armed · watching'; }
 function teardown(){
   if(raf){ cancelAnimationFrame(raf); raf=null; }
   if(armTimer){ clearInterval(armTimer); armTimer=null; }
+  if(calInterval){ clearInterval(calInterval); calInterval=null; }
+  if(calTimer){ clearTimeout(calTimer); calTimer=null; }
   if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; }
   if(audioStream){ audioStream.getTracks().forEach(t=>t.stop()); audioStream=null; }
   window.removeEventListener('devicemotion', onMotionEvent);
   if(video){ video.style.display='none'; video.srcObject=null; }
   prevFrame=null; analyser=null; lastVib=null; vibAvg=0;
+  baseline.motion=0; baseline.vib=0; baseline.sound=0;
   Object.keys(level).forEach(k=>level[k]=0);
   document.querySelectorAll('.meter i').forEach(i=>i.style.width='0%');
   document.querySelectorAll('.meter').forEach(m=>m.classList.remove('hot'));
